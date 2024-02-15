@@ -27,8 +27,10 @@ func (TestBindJs) Test2(params string) Result {
 }
 func main() {
 	userDataDir := chromium.GetCurrentBrowserFlagDir("default")
+
+	// https://www.browserscan.net/zh
 	err := chromium.Run(chromium.ChromiumOptions{
-		Url:               "https://www.yalala.com/",
+		Url:               "https://bot.sannysoft.com/",
 		UserDataDir:       userDataDir,
 		FrontFiles:        frontFiles,
 		ChromeOpts:        []chromedp.ExecAllocatorOption{},
