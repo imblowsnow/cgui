@@ -11,10 +11,10 @@ func GetCurrentDir() (string, error) {
 	return dir, nil
 }
 
-func GetCurrentBrowserFlagDir(name string) (string, error) {
+func GetCurrentBrowserFlagDir(name string) string {
 	dir, err := GetCurrentDir()
 	if err != nil {
-		return "", err
+		panic(err)
 	}
-	return dir + "/.chrome/" + name, nil
+	return dir + "/.chrome/" + name
 }

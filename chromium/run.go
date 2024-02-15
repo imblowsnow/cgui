@@ -9,7 +9,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
-	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/chromedp"
 	"io/fs"
 	"os"
 	"reflect"
@@ -35,7 +35,7 @@ func Run(option ChromiumOptions) error {
 	//		port, _ := strconv.Atoi(components[0])
 	//		if !CheckPortAvailability("127.0.0.1", port) {
 	//			wsurl := fmt.Sprintf("ws://127.0.0.1:%s%s", components[0], components[1])
-	//			err = RunRemoteBrowser(wsurl, option)
+	//			err := RunRemoteBrowser(wsurl, option)
 	//			return err
 	//		}
 	//	}
@@ -43,7 +43,6 @@ func Run(option ChromiumOptions) error {
 
 	err := RunBrowser(option)
 	if err != nil {
-		fmt.Println("RunBrowser error:", err)
 		return err
 	}
 
@@ -65,52 +64,42 @@ func RunBrowser(option ChromiumOptions) error {
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
-	// 制作信号量
-	// 通过监听事件来判断浏览器是否关闭
-	//sem := make(chan struct{}, 1)
-
-	listenTarget(ctx, option)
-
 	fetchEnable := fetch.Enable().WithPatterns([]*fetch.RequestPattern{{URLPattern: "*", RequestStage: "Response"}, {URLPattern: "*", RequestStage: "Request"}})
 	// navigate to a page, wait for an element, click
 	err := chromedp.Run(ctx, fetchEnable)
 
-	waitRun(ctx)
-
 	if err != nil {
 		return err
 	}
+
+	listenTarget(ctx, option)
+
+	listenClose(ctx)
 
 	fmt.Println("chrome is closed")
 
 	return nil
 }
 
-func RunRemoteBrowser(wsurl string, option ChromiumOptions) error {
-	fmt.Println("remote browser:", wsurl)
-	ctx, cancel := chromedp.NewRemoteAllocator(context.Background(), wsurl)
-	defer cancel()
-
-	ctx, cancel = chromedp.NewContext(ctx)
-	defer cancel()
-
-	chromedp.WithBrowserOption()
-
-	// create a timeout
-	ctx, cancel = context.WithCancel(ctx)
-	defer cancel()
-
-	listenTarget(ctx, option)
-
-	// log the protocol messages to understand how it works.
-	err := chromedp.Run(ctx)
-	if err != nil {
-		return err
+func injectTarget(ctx context.Context, option ChromiumOptions) {
+	chromeCtx := chromedp.FromContext(ctx)
+	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
+	fmt.Println("注入 js to go 能力")
+	if option.Binds != nil {
+		// 生成绑定js
+		runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
 	}
+	// init.js
+	goJs, _ := goFiles.ReadFile("script/init.js")
+	goJsStr := string(goJs)
+	// 替换内容
+	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", os.Getenv("APP_MODE"))
+	runtime.Evaluate(goJsStr).Do(executorCtx)
 
-	waitRun(ctx)
-
-	return nil
+	// 页面加载完毕，执行回调
+	if option.OnCreatedPage != nil {
+		option.OnCreatedPage(ctx)
+	}
 }
 func listenTarget(ctx context.Context, option ChromiumOptions) {
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
@@ -148,29 +137,15 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 				}
 				fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
 			case *page.EventLoadEventFired:
-				//fmt.Println("注入 js to go 能力")
-				if option.Binds != nil {
-					// 生成绑定js
-					runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
-				}
-				// init.js
-				goJs, _ := goFiles.ReadFile("script/init.js")
-				goJsStr := string(goJs)
-				// 替换内容
-				goJsStr = strings.ReplaceAll(goJsStr, "{mode}", os.Getenv("APP_MODE"))
-				runtime.Evaluate(goJsStr).Do(executorCtx)
-
-				// 页面加载完毕，执行回调
-				if option.OnCreatedPage != nil {
-					option.OnCreatedPage(ctx)
-				}
-				//case *cdproto.Message:
-				//	fmt.Println("Message:", string(ev.Result))
+				injectTarget(ctx, option)
 			}
 		}()
 	})
+
+	injectTarget(ctx, option)
+
 }
-func waitRun(ctx context.Context) {
+func listenClose(ctx context.Context) {
 	// 制作信号量
 	sem := make(chan struct{}, 1)
 

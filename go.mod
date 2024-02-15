@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20240202021202-6d0b6a386732
-	github.com/chromedp/chromedp v0.9.5
+	github.com/imblowsnow/chromedp v0.0.1
 	github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237
 )
 
@@ -20,3 +20,5 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 )
+
+//replace github.com/chromedp/chromedp v0.9.5 => github.com/imblowsnow/chromedp v0.9.5

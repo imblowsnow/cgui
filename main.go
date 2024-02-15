@@ -4,7 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/chromedp"
 	"main/chromium"
 )
 
@@ -26,18 +26,12 @@ func (TestBindJs) Test2(params string) Result {
 	return Result{Msg: "Test2"}
 }
 func main() {
-	userDataDir, err := chromium.GetCurrentBrowserFlagDir("default")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	chromium.Run(chromium.ChromiumOptions{
-		//Url: "https://www.xiaohongshu.com/explore",
+	userDataDir := chromium.GetCurrentBrowserFlagDir("default")
+	err := chromium.Run(chromium.ChromiumOptions{
+		Url:         "https://www.xiaohongshu.com/explore",
 		UserDataDir: userDataDir,
 		FrontFiles:  frontFiles,
-		ChromeOpts: []chromedp.ExecAllocatorOption{
-			chromedp.Flag("disable-features", "SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit,WinRetrieveSuggestionsOnlyOnDemand"),
-		},
+		ChromeOpts:  []chromedp.ExecAllocatorOption{},
 		OnCreatedPage: func(ctx context.Context) {
 			fmt.Println("页面创建完毕")
 		},
@@ -45,4 +39,7 @@ func main() {
 			TestBindJs{},
 		},
 	})
+	if err != nil {
+		panic(err)
+	}
 }
