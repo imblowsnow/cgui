@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	"github.com/imblowsnow/chromedp"
+	"github.com/tawesoft/golib/v2/dialog"
 	"main/chromium"
 )
 
@@ -28,18 +28,16 @@ func (TestBindJs) Test2(params string) Result {
 func main() {
 	userDataDir := chromium.GetCurrentBrowserFlagDir("default")
 	err := chromium.Run(chromium.ChromiumOptions{
-		Url:         "https://www.xiaohongshu.com/explore",
-		UserDataDir: userDataDir,
-		FrontFiles:  frontFiles,
-		ChromeOpts:  []chromedp.ExecAllocatorOption{},
-		OnCreatedPage: func(ctx context.Context) {
-			fmt.Println("页面创建完毕")
-		},
+		Url:               "https://www.yalala.com/",
+		UserDataDir:       userDataDir,
+		FrontFiles:        frontFiles,
+		ChromeOpts:        []chromedp.ExecAllocatorOption{},
+		RandomFingerprint: true,
 		Binds: []interface{}{
 			TestBindJs{},
 		},
 	})
 	if err != nil {
-		panic(err)
+		dialog.Error(err.Error())
 	}
 }

@@ -11,13 +11,14 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/imblowsnow/chromedp"
 	"io/fs"
+	"main/chromium/event"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-//go:embed script/init.js
+//go:embed script/*.js
 var goFiles embed.FS
 
 func Run(option ChromiumOptions) error {
@@ -50,7 +51,7 @@ func Run(option ChromiumOptions) error {
 }
 
 func RunBrowser(option ChromiumOptions) error {
-	opts := buildOptions(option)
+	opts, url := buildOptions(option)
 
 	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
@@ -74,6 +75,8 @@ func RunBrowser(option ChromiumOptions) error {
 
 	listenTarget(ctx, option)
 
+	chromedp.Run(ctx, chromedp.Navigate(url))
+
 	listenClose(ctx)
 
 	fmt.Println("chrome is closed")
@@ -89,17 +92,23 @@ func injectTarget(ctx context.Context, option ChromiumOptions) {
 		// 生成绑定js
 		runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
 	}
+
+	if option.RandomFingerprint {
+		figerprintJs, _ := goFiles.ReadFile("script/fingerprint.js")
+		figerprintJsStr := string(figerprintJs)
+		_, e, err := runtime.Evaluate(figerprintJsStr).Do(executorCtx)
+		if err != nil {
+			fmt.Println("fingerprint error:", err)
+			fmt.Println("fingerprint error:", e)
+		}
+	}
+
 	// init.js
 	goJs, _ := goFiles.ReadFile("script/init.js")
 	goJsStr := string(goJs)
 	// 替换内容
 	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", os.Getenv("APP_MODE"))
 	runtime.Evaluate(goJsStr).Do(executorCtx)
-
-	// 页面加载完毕，执行回调
-	if option.OnCreatedPage != nil {
-		option.OnCreatedPage(ctx)
-	}
 }
 func listenTarget(ctx context.Context, option ChromiumOptions) {
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
@@ -107,8 +116,8 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 
 		// 获取事件的类型
-		eventType := reflect.TypeOf(ev).String()
-		fmt.Println("listenTarget Event type:", eventType)
+		//eventType := reflect.TypeOf(ev).String()
+		//fmt.Println("listenTarget Event type:", eventType)
 		// 防止阻塞
 		go func() {
 			// 请求监听器
@@ -136,14 +145,19 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 					}
 				}
 				fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+			case *page.EventLifecycleEvent:
+				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
+					event.OnPageLifecycleEvent(ctx, ev)
+					if ev.Name == "init" {
+						injectTarget(ctx, option)
+					}
+				} else {
+					event.OnFrameLifecycleEvent(ctx, ev)
+				}
 			case *page.EventLoadEventFired:
-				injectTarget(ctx, option)
 			}
 		}()
 	})
-
-	injectTarget(ctx, option)
-
 }
 func listenClose(ctx context.Context) {
 	// 制作信号量
@@ -178,7 +192,7 @@ func listenClose(ctx context.Context) {
 	<-sem
 }
 
-func buildOptions(option ChromiumOptions) []chromedp.ExecAllocatorOption {
+func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, string) {
 	url := "https://www.baidu.com"
 	if option.Url != "" {
 		url = option.Url
@@ -213,6 +227,7 @@ func buildOptions(option ChromiumOptions) []chromedp.ExecAllocatorOption {
 		chromedp.Flag("hide-scrollbars", false),
 		chromedp.Flag("mute-audio", false),
 		chromedp.Flag("disable-infobars", true),
+		chromedp.Flag("new-window", true),
 		// 以应用模式显示浏览器
 		chromedp.Flag("app", url),
 		chromedp.Flag("window-size", strconv.Itoa(width)+","+strconv.Itoa(height)),
@@ -226,7 +241,7 @@ func buildOptions(option ChromiumOptions) []chromedp.ExecAllocatorOption {
 		opts = append(opts, option.ChromeOpts...)
 	}
 
-	return opts
+	return opts, url
 }
 
 // IsEmbedFSEmpty checks if an embed.FS is empty.

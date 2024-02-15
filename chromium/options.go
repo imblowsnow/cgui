@@ -27,8 +27,9 @@ type ChromiumOptions struct {
 	// 前端文件
 	FrontFiles embed.FS
 
-	OnCreatedBrowser func(context.Context)
-	OnCreatedPage    func(context.Context)
+	// 是否随机指纹
+	RandomFingerprint bool
+
 	//  false 不拦截，true 拦截，自己处理
 	//  body, err := fetch.GetResponseBody(ev.RequestID).Do(executorCtx)
 	//	if err != nil {
