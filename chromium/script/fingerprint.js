@@ -1075,7 +1075,7 @@
     console.log('fingerprint fingerprintMedia======');
     fingerprintProtect();
     console.log('fingerprint fingerprintProtect======');
-    fingerprintWebgl();
+    // fingerprintWebgl();
     console.log('fingerprint fingerprintWebgl======');
     fingerprintNavigatorPlugins();
     console.log('fingerprint fingerprintNavigatorPlugins======');
@@ -1088,4 +1088,5 @@
         // Pre Chrome 88.0.4291.0 and needs patching
         delete Object.getPrototypeOf(navigator).webdriver
     }
+
 })();

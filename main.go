@@ -29,11 +29,15 @@ func main() {
 	userDataDir := chromium.GetCurrentBrowserFlagDir("default")
 
 	// https://www.browserscan.net/zh
+	// https://bot.sannysoft.com/
+
 	err := chromium.Run(chromium.ChromiumOptions{
-		Url:               "https://bot.sannysoft.com/",
-		UserDataDir:       userDataDir,
-		FrontFiles:        frontFiles,
-		ChromeOpts:        []chromedp.ExecAllocatorOption{},
+		//Url:               "https://www.browserscan.net/zh",
+		UserDataDir: userDataDir,
+		FrontFiles:  frontFiles,
+		ChromeOpts: []chromedp.ExecAllocatorOption{
+			chromedp.Flag("disable-web-security", true),
+		},
 		RandomFingerprint: true,
 		Binds: []interface{}{
 			TestBindJs{},

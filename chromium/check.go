@@ -31,6 +31,8 @@ func findExecPath() string {
 			`C:\Program Files\Google\Chrome\Application\chrome.exe`,
 			filepath.Join(os.Getenv("USERPROFILE"), `AppData\Local\Google\Chrome\Application\chrome.exe`),
 			filepath.Join(os.Getenv("USERPROFILE"), `AppData\Local\Chromium\Application\chrome.exe`),
+
+			`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
 		}
 	default:
 		locations = []string{

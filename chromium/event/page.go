@@ -7,5 +7,5 @@ import (
 )
 
 func OnPageLifecycleEvent(ctx context.Context, ev *page.EventLifecycleEvent) {
-	fmt.Println("OnPageChange:", ev.Name)
+	fmt.Println("OnPageChange:", ev.Name, ev)
 }

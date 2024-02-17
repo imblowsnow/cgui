@@ -65,6 +65,7 @@ func RunBrowser(option ChromiumOptions) error {
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
+	// 监听请求和响应，支持拦截
 	fetchEnable := fetch.Enable().WithPatterns([]*fetch.RequestPattern{{URLPattern: "*", RequestStage: "Response"}, {URLPattern: "*", RequestStage: "Request"}})
 	// navigate to a page, wait for an element, click
 	err := chromedp.Run(ctx, fetchEnable)
@@ -83,16 +84,42 @@ func RunBrowser(option ChromiumOptions) error {
 
 	return nil
 }
+func getIframeContext(ctx context.Context, iframeID string) context.Context {
+	targets, _ := chromedp.Targets(ctx)
+	var tgt *target.Info
+	for _, t := range targets {
+		if t.TargetID.String() == iframeID {
+			tgt = t
+			break
+		}
+	}
+	if tgt != nil {
+		ictx, _ := chromedp.NewContext(ctx, chromedp.WithTargetID(tgt.TargetID))
+		return ictx
+	}
+	return nil
+}
+func injectTarget(ctx context.Context, option ChromiumOptions, frameID string) {
+	if frameID != "" {
+		var tempCtx context.Context
 
-func injectTarget(ctx context.Context, option ChromiumOptions) {
+		for tempCtx == nil {
+			tempCtx = getIframeContext(ctx, frameID)
+			if tempCtx != nil {
+				ctx = tempCtx
+			}
+		}
+		fmt.Println("injectTarget frameID:", frameID)
+		tempChromeCtx := chromedp.FromContext(ctx)
+		if tempChromeCtx.Target == nil {
+			_ = chromedp.Run(
+				ctx, // <-- instead of ctx
+				chromedp.Reload(),
+			)
+		}
+	}
 	chromeCtx := chromedp.FromContext(ctx)
 	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
-	fmt.Println("注入 js to go 能力")
-	if option.Binds != nil {
-		// 生成绑定js
-		runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
-	}
-
 	if option.RandomFingerprint {
 		figerprintJs, _ := goFiles.ReadFile("script/fingerprint.js")
 		figerprintJsStr := string(figerprintJs)
@@ -103,8 +130,18 @@ func injectTarget(ctx context.Context, option ChromiumOptions) {
 		}
 	}
 
-	// init.js
-	goJs, _ := goFiles.ReadFile("script/init.js")
+	fmt.Println("注入 js to go 能力")
+	if option.Binds != nil {
+		// 生成绑定js
+		runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
+	}
+
+	goJs := []byte{}
+	if frameID == "" {
+		goJs, _ = goFiles.ReadFile("script/initPage.js")
+	} else {
+		goJs, _ = goFiles.ReadFile("script/initFrame.js")
+	}
 	goJsStr := string(goJs)
 	// 替换内容
 	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", os.Getenv("APP_MODE"))
@@ -149,9 +186,12 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
 					event.OnPageLifecycleEvent(ctx, ev)
 					if ev.Name == "init" {
-						injectTarget(ctx, option)
+						injectTarget(ctx, option, "")
 					}
 				} else {
+					if ev.Name == "init" {
+						injectTarget(ctx, option, ev.FrameID.String())
+					}
 					event.OnFrameLifecycleEvent(ctx, ev)
 				}
 			case *page.EventLoadEventFired:
@@ -220,6 +260,9 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 	} else {
 		centerX, centerY = getCenterPosition(width, height)
 	}
+	if option.ChromePath == "" {
+		option.ChromePath = findExecPath()
+	}
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false),
@@ -233,6 +276,8 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 		chromedp.Flag("window-size", strconv.Itoa(width)+","+strconv.Itoa(height)),
 		// 窗口居中  x,y
 		chromedp.Flag("window-position", strconv.Itoa(centerX)+","+strconv.Itoa(centerY)),
+
+		chromedp.ExecPath(option.ChromePath),
 	)
 	if option.UserDataDir != "" {
 		opts = append(opts, chromedp.Flag("user-data-dir", option.UserDataDir))

@@ -18,6 +18,8 @@ type ChromiumOptions struct {
 	// 自定义chrome参数
 	ChromeOpts []chromedp.ExecAllocatorOption
 
+	ChromePath string
+
 	// 窗口大小
 	Width  int
 	Height int
