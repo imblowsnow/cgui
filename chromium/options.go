@@ -4,7 +4,7 @@ import (
 	"context"
 	"embed"
 	"github.com/chromedp/cdproto/fetch"
-	"github.com/imblowsnow/chromedp"
+	"github.com/chromedp/chromedp"
 )
 
 type ChromiumOptions struct {
