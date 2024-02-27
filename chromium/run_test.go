@@ -2,15 +2,16 @@ package chromium
 
 import (
 	"context"
-	"github.com/imblowsnow/chromedp"
+	"github.com/chromedp/chromedp"
 	"log"
+	"main/chromium/utils"
 	"testing"
 )
 
 func TestRun(t *testing.T) {
-	opts := buildOptions(ChromiumOptions{
+	opts, _, _ := buildOptions(ChromiumOptions{
 		Url:         "http://www.google.com",
-		UserDataDir: GetCurrentBrowserFlagDir("default"),
+		UserDataDir: utils.GetCurrentBrowserFlagDir("default"),
 	})
 
 	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)

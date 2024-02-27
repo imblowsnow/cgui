@@ -1,4 +1,4 @@
-package chromium
+package utils
 
 import (
 	"os"
@@ -9,11 +9,11 @@ import (
 
 // 检查chromium浏览器是否存在
 func CheckChromium() bool {
-	path := findExecPath()
+	path := FindExecPath()
 	return path != ""
 }
 
-func findExecPath() string {
+func FindExecPath() string {
 	var locations []string
 	switch runtime.GOOS {
 	case "darwin":

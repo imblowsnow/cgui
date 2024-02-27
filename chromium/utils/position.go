@@ -1,4 +1,4 @@
-package chromium
+package utils
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"image"
 )
 
-func getScreen() image.Rectangle {
+func GetScreen() image.Rectangle {
 	if screenshot.NumActiveDisplays() < 0 {
 		return image.Rect(0, 0, 0, 0)
 	}
@@ -14,8 +14,8 @@ func getScreen() image.Rectangle {
 	return bounds
 }
 
-func getCenterPosition(width int, height int) (int, int) {
-	bounds := getScreen()
+func GetCenterPosition(width int, height int) (int, int) {
+	bounds := GetScreen()
 	fmt.Println("屏幕的宽高", bounds.Dx(), bounds.Dy())
 	// 计算左上角的位置
 	topLeftX := (bounds.Dx() - width) / 2 / 2
@@ -23,8 +23,8 @@ func getCenterPosition(width int, height int) (int, int) {
 	return topLeftX, topLeftY
 }
 
-func getAutoWidthHeight() (int, int) {
-	bounds := getScreen()
+func GetAutoWidthHeight() (int, int) {
+	bounds := GetScreen()
 	// 以屏幕的宽度的80%为宽度
 	width := int(float64(bounds.Dx()) * 0.5)
 	// 以屏幕的高度的80%为高度

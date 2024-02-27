@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"io/fs"
 	"main/chromium/event"
+	"main/chromium/front"
+	"main/chromium/utils"
 	"os"
 	"os/signal"
 	"reflect"
@@ -26,11 +28,6 @@ import (
 var goFiles embed.FS
 
 func Run(option ChromiumOptions) error {
-	if !CheckChromium() {
-		// 未安装google浏览器，
-		return fmt.Errorf("未安装google浏览器，请自行安装")
-	}
-
 	err := RunBrowser(option)
 	if err != nil {
 		return err
@@ -40,7 +37,10 @@ func Run(option ChromiumOptions) error {
 }
 
 func RunBrowser(option ChromiumOptions) error {
-	opts, url := buildOptions(option)
+	opts, url, error := buildOptions(option)
+	if error != nil {
+		return error
+	}
 
 	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
@@ -240,17 +240,17 @@ func listenClose(ctx context.Context) {
 	<-sem
 }
 
-func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, string) {
+func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, string, error) {
 	url := "https://www.baidu.com"
 	if option.Url != "" {
 		url = option.Url
 	} else if flag, _ := isEmbedFSEmpty(option.FrontFiles); flag {
-		panic("前端文件为空，且未指定访问的url")
+		return nil, "", fmt.Errorf("前端文件为空，且未指定访问的url")
 	} else {
 		if option.FrontPrefix == "" {
 			option.FrontPrefix = "front"
 		}
-		addr := RunFileServer(option.FrontFiles, option.FrontPrefix)
+		addr := front.RunEmbedFileServer(option.FrontFiles, option.FrontPrefix)
 		url = "http://" + addr
 	}
 	fmt.Println("url:", url)
@@ -260,16 +260,19 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 		width = option.Width
 		height = option.Height
 	} else {
-		width, height = getAutoWidthHeight()
+		width, height = utils.GetAutoWidthHeight()
 	}
 	if option.X > 0 && option.Y > 0 {
 		centerX = option.X
 		centerY = option.Y
 	} else {
-		centerX, centerY = getCenterPosition(width, height)
+		centerX, centerY = utils.GetCenterPosition(width, height)
 	}
 	if option.ChromePath == "" {
-		option.ChromePath = findExecPath()
+		option.ChromePath = utils.FindExecPath()
+	}
+	if option.ChromePath == "" {
+		return nil, "", fmt.Errorf("未安装google浏览器，请自行安装")
 	}
 
 	uuidStr := uuid.New().String()
@@ -300,7 +303,7 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 		opts = append(opts, option.ChromeOpts...)
 	}
 
-	return opts, url
+	return opts, url, nil
 }
 
 // IsEmbedFSEmpty checks if an embed.FS is empty.

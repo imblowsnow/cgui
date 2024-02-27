@@ -1,17 +1,17 @@
-package chromium
+package front
 
 import (
 	"embed"
 	"fmt"
 	"io/fs"
 	"log"
-	"net"
+	"main/chromium/utils"
 	"net/http"
 	"strconv"
 )
 
 // 创建文件服务
-func RunFileServer(frontFiles embed.FS, frontPrefix string) string {
+func RunEmbedFileServer(frontFiles embed.FS, frontPrefix string) string {
 	// 创建文件服务
 	http.Handle("/", http.FileServer(http.FS(&frontFileServerFs{
 		prefix:     frontPrefix,
@@ -19,9 +19,9 @@ func RunFileServer(frontFiles embed.FS, frontPrefix string) string {
 	})))
 
 	// 检查可用端口
-	defaultPort := 55556
+	defaultPort := startPort
 	for {
-		if CheckPortAvailability("127.0.0.1", defaultPort) {
+		if utils.CheckPortAvailability("127.0.0.1", defaultPort) {
 			break
 		}
 		defaultPort++
@@ -37,15 +37,6 @@ func RunFileServer(frontFiles embed.FS, frontPrefix string) string {
 	}()
 
 	return addr
-}
-
-func CheckPortAvailability(host string, port int) bool {
-	ln, err := net.Listen("tcp", host+":"+strconv.Itoa(port))
-	if err != nil {
-		return false
-	}
-	_ = ln.Close()
-	return true
 }
 
 type frontFileServerFs struct {

@@ -1,4 +1,4 @@
-package chromium
+package utils
 
 import "os"
 
