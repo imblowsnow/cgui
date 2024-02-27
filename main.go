@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"github.com/chromedp/cdproto/fetch"
 	"github.com/imblowsnow/chromedp"
 	"github.com/tawesoft/golib/v2/dialog"
 	"main/chromium"
@@ -35,8 +36,14 @@ func main() {
 		//Url:               "https://www.browserscan.net/zh",
 		UserDataDir: userDataDir,
 		FrontFiles:  frontFiles,
+		CorsFilter: func(paused *fetch.EventRequestPaused) bool {
+			return true
+		},
 		ChromeOpts: []chromedp.ExecAllocatorOption{
-			chromedp.Flag("disable-web-security", true),
+			// 禁用跨域安全策略
+			// chromedp.Flag("disable-web-security", true),
+			// 隐身模式
+			// chromedp.Flag("incognito", true),
 		},
 		RandomFingerprint: true,
 		Binds: []interface{}{

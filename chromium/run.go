@@ -3,12 +3,14 @@ package chromium
 import (
 	"context"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
+	"github.com/google/uuid"
 	"github.com/imblowsnow/chromedp"
 	"io/fs"
 	"main/chromium/event"
@@ -26,21 +28,6 @@ func Run(option ChromiumOptions) error {
 		// 未安装google浏览器，
 		return fmt.Errorf("未安装google浏览器")
 	}
-
-	// 检测是否是多开
-	//if option.UserDataDir != "" {
-	//	devtoolsFile, _ := os.ReadFile(filepath.Join(option.UserDataDir, "DevToolsActivePort"))
-	//	if devtoolsFile != nil {
-	//		components := strings.Split(string(devtoolsFile), "\n")
-	//		// 通过端口号连接，是否启动
-	//		port, _ := strconv.Atoi(components[0])
-	//		if !CheckPortAvailability("127.0.0.1", port) {
-	//			wsurl := fmt.Sprintf("ws://127.0.0.1:%s%s", components[0], components[1])
-	//			err := RunRemoteBrowser(wsurl, option)
-	//			return err
-	//		}
-	//	}
-	//}
 
 	err := RunBrowser(option)
 	if err != nil {
@@ -167,6 +154,15 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 				}
 
 				if ev.ResponseStatusCode > 0 {
+					// 如果处理跨域
+					if option.CorsFilter(ev) {
+						err := corsHandler(ev, executorCtx)
+						if err == nil {
+							return
+						} else {
+							fmt.Println("corsHandler error:", ev.Request.URL, err)
+						}
+					}
 					// 响应拦截
 					if option.OnResponseIntercept != nil {
 						if option.OnResponseIntercept(ev, executorCtx) {
@@ -264,6 +260,9 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 		option.ChromePath = findExecPath()
 	}
 
+	uuidStr := uuid.New().String()
+	// 为了解决重复复用窗口的问题
+	randomSite := fmt.Sprintf("https://www.baidu.com/%s", uuidStr)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false),
 		chromedp.Flag("enable-automation", false),
@@ -272,13 +271,16 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 		chromedp.Flag("disable-infobars", true),
 		chromedp.Flag("new-window", true),
 		// 以应用模式显示浏览器
-		chromedp.Flag("app", url),
+		chromedp.Flag("app", randomSite),
 		chromedp.Flag("window-size", strconv.Itoa(width)+","+strconv.Itoa(height)),
 		// 窗口居中  x,y
 		chromedp.Flag("window-position", strconv.Itoa(centerX)+","+strconv.Itoa(centerY)),
 
 		chromedp.ExecPath(option.ChromePath),
 	)
+	if option.UserAgent != "" {
+		opts = append(opts, chromedp.UserAgent(option.UserAgent))
+	}
 	if option.UserDataDir != "" {
 		opts = append(opts, chromedp.Flag("user-data-dir", option.UserDataDir))
 	}
@@ -296,4 +298,21 @@ func isEmbedFSEmpty(eFS embed.FS) (bool, error) {
 		return false, err
 	}
 	return len(dirEntries) == 0, nil
+}
+
+func corsHandler(ev *fetch.EventRequestPaused, ctx context.Context) error {
+	body, err := fetch.GetResponseBody(ev.RequestID).Do(ctx)
+	if err != nil {
+		return err
+	}
+	// 追加响应头
+	for i, header := range ev.ResponseHeaders {
+		// 删除原来的跨域数据
+		if strings.ToLower(header.Name) == strings.ToLower("Access-Control-Allow-Origin") {
+			ev.ResponseHeaders = append(ev.ResponseHeaders[:i], ev.ResponseHeaders[i+1:]...)
+		}
+	}
+	ev.ResponseHeaders = append(ev.ResponseHeaders, &fetch.HeaderEntry{Name: "Access-Control-Allow-Origin", Value: "*"})
+	err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(body)).Do(ctx)
+	return err
 }
