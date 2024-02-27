@@ -15,9 +15,11 @@ import (
 	"io/fs"
 	"main/chromium/event"
 	"os"
+	"os/signal"
 	"reflect"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 //go:embed script/*.js
@@ -26,7 +28,7 @@ var goFiles embed.FS
 func Run(option ChromiumOptions) error {
 	if !CheckChromium() {
 		// 未安装google浏览器，
-		return fmt.Errorf("未安装google浏览器")
+		return fmt.Errorf("未安装google浏览器，请自行安装")
 	}
 
 	err := RunBrowser(option)
@@ -60,6 +62,10 @@ func RunBrowser(option ChromiumOptions) error {
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		chromedp.Cancel(ctx)
+	}()
 
 	listenTarget(ctx, option)
 
@@ -155,7 +161,7 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 
 				if ev.ResponseStatusCode > 0 {
 					// 如果处理跨域
-					if option.CorsFilter(ev) {
+					if option.CorsFilter != nil && option.CorsFilter(ev) {
 						err := corsHandler(ev, executorCtx)
 						if err == nil {
 							return
@@ -224,6 +230,12 @@ func listenClose(ctx context.Context) {
 		}
 	})
 
+	go func() {
+		exitHandle()
+
+		sem <- struct{}{}
+	}()
+
 	// 等待信号量
 	<-sem
 }
@@ -233,7 +245,7 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 	if option.Url != "" {
 		url = option.Url
 	} else if flag, _ := isEmbedFSEmpty(option.FrontFiles); flag {
-		panic("前端文件为空，且未指定url")
+		panic("前端文件为空，且未指定访问的url")
 	} else {
 		if option.FrontPrefix == "" {
 			option.FrontPrefix = "front"
@@ -315,4 +327,18 @@ func corsHandler(ev *fetch.EventRequestPaused, ctx context.Context) error {
 	ev.ResponseHeaders = append(ev.ResponseHeaders, &fetch.HeaderEntry{Name: "Access-Control-Allow-Origin", Value: "*"})
 	err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(body)).Do(ctx)
 	return err
+}
+
+func exitHandle() {
+	exitChan := make(chan os.Signal)
+	signal.Notify(exitChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	for {
+		select {
+		case sig := <-exitChan:
+			fmt.Println("接受到来自系统的信号：", sig)
+			return
+		}
+	}
+
 }
