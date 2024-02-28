@@ -224,9 +224,15 @@ func (b *Builder) RunProject() error {
 	// 获取当前的环境变量
 	env := os.Environ()
 	// 添加新的环境变量
-	env = append(env, "mode=dev")
-	env = append(env, "devUrl="+b.options.ProjectData.FrontendDevServerURL)
-	env = append(env, "assetdir="+b.options.ProjectData.AssetDirectory)
+
+	newEnvs := slicer.String()
+	newEnvs.Add("mode=dev")
+	newEnvs.Add("devUrl=" + b.options.ProjectData.FrontendDevServerURL)
+	newEnvs.Add("assetdir=" + b.options.ProjectData.AssetDirectory)
+
+	pterm.Info.Println("env:", strings.Join(newEnvs.AsSlice(), ";"))
+
+	env = append(env, newEnvs.AsSlice()...)
 
 	cmd.Env = env
 
