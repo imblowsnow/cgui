@@ -16,7 +16,6 @@ import (
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
-	"github.com/pterm/pterm"
 	"io/fs"
 	"os"
 	"os/signal"
@@ -177,8 +176,8 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
 		// 获取事件的类型
-		eventType := reflect.TypeOf(ev).String()
-		pterm.Info.Println("listenTarget Event type:", eventType)
+		//eventType := reflect.TypeOf(ev).String()
+		//pterm.Info.Println("listenTarget Event type:", eventType)
 		// 防止阻塞
 		go func() {
 			// 请求监听器
