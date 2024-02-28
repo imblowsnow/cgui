@@ -22,9 +22,9 @@ func Run(option ChromiumOptions) error {
 			} else {
 				return fmt.Errorf("FrontPrefix 为空")
 			}
+		} else {
+			return fmt.Errorf("FrontPrefix 为空 且 读取 项目配置 失败")
 		}
-	} else {
-		return fmt.Errorf("FrontPrefix 为空")
 	}
 
 	err := runBrowser(option)
