@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/network"
 )
 
 type FetchHandler struct {
@@ -12,7 +13,14 @@ type FetchHandler struct {
 func (f *FetchHandler) Add(h func(event *FetchRequestEvent)) {
 	f.handlers = append(f.handlers, h)
 }
-func (f *FetchHandler) Handle(ev *fetch.EventRequestPaused, ctx context.Context) *FetchRequestEvent {
+func (f *FetchHandler) Handle(ev *fetch.EventRequestPaused, ctx context.Context, extraHeader network.Headers) *FetchRequestEvent {
+	extraResponseHeaders := make(map[string]string)
+	if extraHeader != nil {
+		for k, v := range extraHeader {
+			extraResponseHeaders[k] = v.(string)
+		}
+	}
+
 	event := &FetchRequestEvent{
 		Event: ev,
 		Ctx:   ctx,
@@ -24,6 +32,7 @@ func (f *FetchHandler) Handle(ev *fetch.EventRequestPaused, ctx context.Context)
 			}
 			f.handleNext(event, event.index)
 		},
+		ExtraResponseHeaders: extraResponseHeaders,
 	}
 
 	f.handleNext(event, 0)

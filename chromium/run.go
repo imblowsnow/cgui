@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
@@ -88,6 +89,31 @@ func getIframeContext(ctx context.Context, iframeID string) context.Context {
 	}
 	return nil
 }
+
+func getIframeExecutorContext(ctx context.Context, frameID string) context.Context {
+	if frameID != "" {
+		var tempCtx context.Context
+
+		for tempCtx == nil {
+			tempCtx = getIframeContext(ctx, frameID)
+			if tempCtx != nil {
+				ctx = tempCtx
+			}
+		}
+		tempChromeCtx := chromedp.FromContext(ctx)
+		if tempChromeCtx.Target == nil {
+			_ = chromedp.Run(
+				ctx, // <-- instead of ctx
+				chromedp.Reload(),
+			)
+		}
+	}
+	chromeCtx := chromedp.FromContext(ctx)
+	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
+
+	return executorCtx
+}
+
 func injectTarget(ctx context.Context, option *ChromiumOptions, frameID string) {
 	if frameID != "" {
 		var tempCtx context.Context
@@ -158,8 +184,6 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 	var requestFetchHandler = handler.FetchHandler{}
 
 	requestFetchHandler.Add(handler.BindHandler)
-	// cors 过滤
-	requestFetchHandler.Add(corsFilter)
 	for _, requestHandler := range option.RequestHandlers {
 		requestFetchHandler.Add(requestHandler)
 	}
@@ -172,9 +196,11 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 	}
 
 	chromeCtx := chromedp.FromContext(ctx)
-	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
+
+	var extraHeaderRequestMap = make(map[string]network.Headers)
 
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
+		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 		// 获取事件的类型
 		//eventType := reflect.TypeOf(ev).String()
 		//pterm.Info.Println("listenTarget Event type:", eventType)
@@ -184,18 +210,40 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 			switch ev := ev.(type) {
 			// 注意，有2中事件，一种是请求，一种是响应通过 ev.ResponseStatusCode 区分
 			case *fetch.EventRequestPaused:
+				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
+					executorCtx = getIframeExecutorContext(ctx, ev.FrameID.String())
+				}
 				var event *handler.FetchRequestEvent
+				extraHeader := extraHeaderRequestMap[ev.NetworkID.String()]
+				if extraHeader != nil {
+					// 删除原来的数据
+					delete(extraHeaderRequestMap, ev.NetworkID.String())
+				}
 				if ev.ResponseStatusCode > 0 {
-					event = responseFetchHandler.Handle(ev, executorCtx)
+					event = responseFetchHandler.Handle(ev, executorCtx, extraHeader)
 				} else {
-					event = requestFetchHandler.Handle(ev, executorCtx)
+					event = requestFetchHandler.Handle(ev, executorCtx, extraHeader)
 				}
 				var err error
-				if event.IsHandle() {
-					err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(executorCtx)
+
+				if ev.ResponseStatusCode > 0 {
+					if event.IsHandle() {
+						err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(executorCtx)
+					} else {
+						err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+					}
 				} else {
-					err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+					if event.IsHandle() {
+						var headers []*fetch.HeaderEntry
+						for k, v := range ev.Request.Headers {
+							headers = append(headers, &fetch.HeaderEntry{Name: k, Value: v.(string)})
+						}
+						err = fetch.ContinueRequest(ev.RequestID).WithHeaders(headers).Do(executorCtx)
+					} else {
+						err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+					}
 				}
+
 				if err != nil {
 					fmt.Println("fetch handle error:", ev.Request.URL, err)
 				}
@@ -217,6 +265,8 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 				} else {
 					injectTarget(ctx, option, ev.FrameID.String())
 				}
+			case *network.EventResponseReceivedExtraInfo:
+				extraHeaderRequestMap[ev.RequestID.String()] = ev.Headers
 			}
 		}()
 	})

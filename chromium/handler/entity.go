@@ -7,9 +7,10 @@ import (
 )
 
 type FetchRequestEvent struct {
-	Event *fetch.EventRequestPaused
-	Ctx   context.Context
-	body  []byte
+	Event                *fetch.EventRequestPaused
+	ExtraResponseHeaders map[string]string
+	Ctx                  context.Context
+	body                 []byte
 
 	index int
 	next  func(event *FetchRequestEvent)
@@ -53,4 +54,9 @@ func (f *FetchRequestEvent) SetBody(body []byte) {
 
 func (f *FetchRequestEvent) IsHandle() bool {
 	return f.flag
+}
+
+func (f *FetchRequestEvent) GetSetCookies() string {
+	cookies := f.ExtraResponseHeaders["set-cookie"]
+	return cookies
 }
