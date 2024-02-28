@@ -8,11 +8,11 @@ import (
 )
 
 //go:embed all:frontend/dist
+//go:embed project.json
 var frontFiles embed.FS
 
 func main() {
 	err := chromium.Run(chromium.ChromiumOptions{
-		//Url:               "https://www.browserscan.net/zh",
 		FrontFiles:  frontFiles,
 		FrontPrefix: "frontend/dist",
 		//UserDataDir: utils.GetCurrentBrowserFlagDir("default"),

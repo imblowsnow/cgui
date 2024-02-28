@@ -27,26 +27,6 @@ import (
 //go:embed script/*.js
 var goFiles embed.FS
 
-func Run(option ChromiumOptions) error {
-	// 如果是开发模式，需要启动开发模式
-	if utils.IsDev() {
-		fmt.Println("Run dev mode", os.Getenv("devUrl"))
-		if os.Getenv("devUrl") != "" {
-			option.Url = os.Getenv("devUrl")
-		}
-		if os.Getenv("assetdir") != "" {
-			option.FrontPrefix = os.Getenv("assetdir")
-		}
-	}
-
-	err := runBrowser(option)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func runBrowser(option ChromiumOptions) error {
 	opts, url, error := buildOptions(option)
 	if error != nil {
