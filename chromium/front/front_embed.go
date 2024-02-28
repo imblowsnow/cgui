@@ -3,9 +3,9 @@ package front
 import (
 	"embed"
 	"fmt"
+	"github.com/imblowsnow/cgui/chromium/utils"
 	"io/fs"
 	"log"
-	"main/chromium/utils"
 	"net/http"
 	"strconv"
 )

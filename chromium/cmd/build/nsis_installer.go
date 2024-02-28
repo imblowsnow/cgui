@@ -2,10 +2,10 @@ package build
 
 import (
 	"fmt"
-	"main/chromium/cmd/build/buildassets"
-	"main/chromium/cmd/build/fs"
-	"main/chromium/cmd/build/shell"
-	build2 "main/chromium/internal/build"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/buildassets"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/shell"
+	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"path"
 	"path/filepath"
 	"strings"

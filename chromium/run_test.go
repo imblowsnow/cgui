@@ -3,8 +3,8 @@ package chromium
 import (
 	"context"
 	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/cgui/chromium/utils"
 	"log"
-	"main/chromium/utils"
 	"testing"
 )
 

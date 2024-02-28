@@ -1,8 +1,8 @@
 package front
 
 import (
+	"github.com/imblowsnow/cgui/chromium/utils"
 	"log"
-	"main/chromium/utils"
 	"net/http"
 	"strconv"
 )

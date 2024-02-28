@@ -2,13 +2,13 @@ package build
 
 import (
 	"fmt"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/package"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/shell"
+	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"github.com/leaanthony/slicer"
 	"github.com/pkg/errors"
 	"github.com/pterm/pterm"
-	"main/chromium/cmd/build/fs"
-	"main/chromium/cmd/build/package"
-	"main/chromium/cmd/build/shell"
-	build2 "main/chromium/internal/build"
 	"os"
 	"os/exec"
 	"path/filepath"

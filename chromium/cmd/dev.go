@@ -1,9 +1,9 @@
 package main
 
 import (
-	"main/chromium/cmd/build"
-	"main/chromium/cmd/build/flags"
-	build2 "main/chromium/internal/build"
+	"github.com/imblowsnow/cgui/chromium/cmd/build"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/flags"
+	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"os"
 	"path/filepath"
 	"runtime"

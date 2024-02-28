@@ -2,12 +2,12 @@ package _package
 
 import (
 	"bytes"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/buildassets"
+	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
+	"github.com/imblowsnow/cgui/chromium/internal/build"
 	"github.com/jackmordaunt/icns"
 	"github.com/pkg/errors"
 	"image"
-	"main/chromium/cmd/build/buildassets"
-	"main/chromium/cmd/build/fs"
-	"main/chromium/internal/build"
 	"os"
 	"path/filepath"
 )
