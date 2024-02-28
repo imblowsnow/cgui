@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/pterm/pterm"
-	"github.com/wailsapp/wails/v2/cmd/wails/flags"
 	"main/chromium/cmd/build"
+	"main/chromium/cmd/build/flags"
 	build2 "main/chromium/internal/build"
 	"os"
 	"path/filepath"
