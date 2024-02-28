@@ -1,6 +1,7 @@
 (function (){
-    console.log("initPage.js loaded!");
     const mode = "{mode}";
+
+    console.log("inject common.js success!  mode=", mode);
 
     if (mode !== "dev") {
         // 拦截右击菜单

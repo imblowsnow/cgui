@@ -14,7 +14,9 @@ import (
 	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
 	"github.com/imblowsnow/cgui/chromium/handler"
-	"github.com/imblowsnow/cgui/chromium/utils"
+	"github.com/imblowsnow/cgui/chromium/utils/env"
+	"github.com/leaanthony/slicer"
+	"github.com/pterm/pterm"
 	"io/fs"
 	"os"
 	"os/signal"
@@ -23,7 +25,7 @@ import (
 	"syscall"
 )
 
-//go:embed script/*.js
+//go:embed all:script
 var goFiles embed.FS
 
 func runBrowser(option *ChromiumOptions) error {
@@ -109,7 +111,7 @@ func injectTarget(ctx context.Context, option *ChromiumOptions, frameID string) 
 	chromeCtx := chromedp.FromContext(ctx)
 	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 	if option.RandomFingerprint {
-		figerprintJs, _ := goFiles.ReadFile("script/fingerprint.js")
+		figerprintJs, _ := goFiles.ReadFile("script/inject/fingerprint.js")
 		figerprintJsStr := string(figerprintJs)
 		_, e, err := runtime.Evaluate(figerprintJsStr).Do(executorCtx)
 		if err != nil {
@@ -124,48 +126,59 @@ func injectTarget(ctx context.Context, option *ChromiumOptions, frameID string) 
 		runtime.Evaluate(bind.GenerateBindJs(option.Binds)).Do(executorCtx)
 	}
 
-	goJs := []byte{}
+	var scriptFiles = slicer.String()
+	scriptFiles.Add("script/inject/common.js")
+
 	if frameID == "" {
-		goJs, _ = goFiles.ReadFile("script/initPage.js")
+		scriptFiles.Add("script/inject/page.js")
 	} else {
-		goJs, _ = goFiles.ReadFile("script/initFrame.js")
+		scriptFiles.Add("script/inject/frame.js")
 	}
-	goJsStr := string(goJs)
-	// 替换内容
-	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", utils.Mode())
-	runtime.Evaluate(goJsStr).Do(executorCtx)
+
+	for _, scriptFile := range scriptFiles.AsSlice() {
+		scriptBytes, _ := goFiles.ReadFile(scriptFile)
+		scriptStr := string(scriptBytes)
+		// 替换变量
+		scriptStr = strings.ReplaceAll(scriptStr, "{mode}", env.Mode())
+		runtime.Evaluate(scriptStr).Do(executorCtx)
+	}
+
+	// 执行app的ready方法
+	if option.App != nil && option.App.OnReady != nil {
+		option.App.OnReady(executorCtx)
+	}
 }
 func listenTarget(ctx context.Context, option *ChromiumOptions) {
+	var corsFilter = func(event *handler.FetchRequestEvent) {
+		if option.CorsFilter != nil && option.CorsFilter(event.Event) {
+			handler.CorsHandler(event)
+		}
+		event.Next()
+	}
+
+	var requestFetchHandler = handler.FetchHandler{}
+
+	requestFetchHandler.Add(handler.BindHandler)
+	// cors 过滤
+	requestFetchHandler.Add(corsFilter)
+	for _, requestHandler := range option.RequestHandlers {
+		requestFetchHandler.Add(requestHandler)
+	}
+
+	var responseFetchHandler = handler.FetchHandler{}
+	// cors 过滤
+	responseFetchHandler.Add(corsFilter)
+	for _, responseHandler := range option.ResponseHandlers {
+		responseFetchHandler.Add(responseHandler)
+	}
+
+	chromeCtx := chromedp.FromContext(ctx)
+	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
+
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
-		chromeCtx := chromedp.FromContext(ctx)
-		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
-
-		var corsFilter = func(event *handler.FetchRequestEvent) {
-			if option.CorsFilter != nil && option.CorsFilter(ev.(*fetch.EventRequestPaused)) {
-				handler.CorsHandler(event)
-			}
-			event.Next()
-		}
-
-		var requestFetchHandler = handler.FetchHandler{}
-
-		requestFetchHandler.Add(handler.BindHandler)
-		// cors 过滤
-		requestFetchHandler.Add(corsFilter)
-		for _, requestHandler := range option.RequestHandlers {
-			requestFetchHandler.Add(requestHandler)
-		}
-
-		var responseFetchHandler = handler.FetchHandler{}
-		// cors 过滤
-		responseFetchHandler.Add(corsFilter)
-		for _, responseHandler := range option.ResponseHandlers {
-			responseFetchHandler.Add(responseHandler)
-		}
-
 		// 获取事件的类型
-		//eventType := reflect.TypeOf(ev).String()
-		//fmt.Println("listenTarget Event type:", eventType)
+		eventType := reflect.TypeOf(ev).String()
+		pterm.Info.Println("listenTarget Event type:", eventType)
 		// 防止阻塞
 		go func() {
 			// 请求监听器
@@ -190,16 +203,21 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 			case *page.EventLifecycleEvent:
 				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
 					event.OnPageLifecycleEvent(ctx, ev)
-					if ev.Name == "init" {
-						injectTarget(ctx, option, "")
+					if option.App != nil && option.App.OnPageLifecycleEvent != nil {
+						option.App.OnPageLifecycleEvent(executorCtx, ev)
 					}
 				} else {
-					if ev.Name == "init" {
-						injectTarget(ctx, option, ev.FrameID.String())
-					}
 					event.OnFrameLifecycleEvent(ctx, ev)
+					if option.App != nil && option.App.OnFrameLifecycleEvent != nil {
+						option.App.OnFrameLifecycleEvent(executorCtx, ev)
+					}
 				}
-			case *page.EventLoadEventFired:
+			case *page.EventFrameStartedLoading:
+				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
+					injectTarget(ctx, option, "")
+				} else {
+					injectTarget(ctx, option, ev.FrameID.String())
+				}
 			}
 		}()
 	})

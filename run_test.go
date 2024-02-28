@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/imblowsnow/cgui/chromium/handler"
@@ -29,6 +31,16 @@ func TestRun(t *testing.T) {
 			func(event *handler.FetchRequestEvent) {
 				fmt.Println("on request", event.Event.Request.URL)
 				event.Next()
+			},
+		},
+
+		App: &chromium.App{
+			OnReady: func(ctx context.Context) {
+				fmt.Println("on ready")
+				_, _, err := runtime.Evaluate("console.log(2333)").Do(ctx)
+				if err != nil {
+					fmt.Println("Evaluate error", err.Error())
+				}
 			},
 		},
 	})

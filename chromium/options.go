@@ -52,6 +52,8 @@ type ChromiumOptions struct {
 
 	// 绑定方法
 	Binds []interface{}
+
+	App *App
 }
 
 func (option *ChromiumOptions) buildOptions() ([]chromedp.ExecAllocatorOption, string, error) {
