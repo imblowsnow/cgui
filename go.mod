@@ -1,4 +1,4 @@
-module main
+module github.com/imblowsnow/cgui
 
 go 1.21
 

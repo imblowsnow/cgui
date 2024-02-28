@@ -3,8 +3,8 @@ package main
 import (
 	"embed"
 	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/cgui/chromium"
 	"github.com/tawesoft/golib/v2/dialog"
-	"main/chromium"
 )
 
 //go:embed all:frontend/dist
