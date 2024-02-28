@@ -40,6 +40,12 @@ func buildApplication(f *flags.Build) error {
 		if err != nil {
 			return err
 		}
+
+		// 生成前端图标
+		err := frontBuilder.GenerateFrontIco()
+		if err != nil {
+			return err
+		}
 	}
 
 	builder := build3.NewBuilder(options)

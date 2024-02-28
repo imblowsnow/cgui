@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/buildassets"
 	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/dev"
 	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/fs"
 	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/shell"
 	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
+	"github.com/leaanthony/winicon"
 	"github.com/pterm/pterm"
 	"os"
 	"os/exec"
@@ -230,6 +232,37 @@ func (b *FrontBuilder) RunFrontend(verbos bool) (func(), string, string, error) 
 	}
 
 	return runFrontendDevWatcherCommand(frontendDir, strings.Join(cmd, " "), b.options.ProjectData.IsFrontendDevServerURLAutoDiscovery())
+}
+
+func (b *FrontBuilder) GenerateFrontIco() error {
+	options := b.options
+	iconName := "appicon"
+	content, err := buildassets.ReadFile(options.ProjectData, iconName+".png")
+	if err != nil {
+		return err
+	}
+
+	// Check ico file exists already
+	icoFile := filepath.Clean(filepath.Join(options.ProjectData.Path, options.ProjectData.AssetDirectory, filepath.FromSlash("favicon.ico")))
+	if !fs.FileExists(icoFile) {
+		if dir := filepath.Dir(icoFile); !fs.DirExists(dir) {
+			if err := fs.MkDirs(dir, 0o755); err != nil {
+				return err
+			}
+		}
+
+		output, err := os.OpenFile(icoFile, os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		defer output.Close()
+
+		err = winicon.GenerateIcon(bytes.NewBuffer(content), output, []int{256, 128, 64, 48, 32, 16})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runFrontendDevWatcherCommand(frontendDirectory string, devCommand string, discoverViteServerURL bool) (func(), string, string, error) {

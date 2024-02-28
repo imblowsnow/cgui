@@ -47,6 +47,11 @@ func devApplication(dev *flags.Dev) error {
 
 		defer closer()
 
+		// 生成前端图标
+		err = frontBuilder.GenerateFrontIco()
+		if err != nil {
+			return err
+		}
 	}
 
 	// 调用go 启动应用

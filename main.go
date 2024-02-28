@@ -9,14 +9,13 @@ import (
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/tawesoft/golib/v2/dialog"
-	"testing"
 )
 
 //go:embed all:frontend
 //go:embed project.json
 var frontFiles embed.FS
 
-func TestRun(t *testing.T) {
+func main() {
 	err := chromium.Run(&chromium.ChromiumOptions{
 		FrontFiles:  frontFiles,
 		FrontPrefix: "frontend",
