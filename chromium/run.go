@@ -28,7 +28,18 @@ import (
 var goFiles embed.FS
 
 func Run(option ChromiumOptions) error {
-	err := RunBrowser(option)
+	// 如果是开发模式，需要启动开发模式
+	if utils.IsDev() {
+		fmt.Println("Run dev mode", os.Getenv("devUrl"))
+		if os.Getenv("devUrl") != "" {
+			option.Url = os.Getenv("devUrl")
+		}
+		if os.Getenv("assetdir") != "" {
+			option.FrontPrefix = os.Getenv("assetdir")
+		}
+	}
+
+	err := runBrowser(option)
 	if err != nil {
 		return err
 	}
@@ -36,7 +47,7 @@ func Run(option ChromiumOptions) error {
 	return nil
 }
 
-func RunBrowser(option ChromiumOptions) error {
+func runBrowser(option ChromiumOptions) error {
 	opts, url, error := buildOptions(option)
 	if error != nil {
 		return error
@@ -137,7 +148,7 @@ func injectTarget(ctx context.Context, option ChromiumOptions, frameID string) {
 	}
 	goJsStr := string(goJs)
 	// 替换内容
-	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", os.Getenv("APP_MODE"))
+	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", utils.Mode())
 	runtime.Evaluate(goJsStr).Do(executorCtx)
 }
 func listenTarget(ctx context.Context, option ChromiumOptions) {
@@ -244,11 +255,13 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 	url := "https://www.baidu.com"
 	if option.Url != "" {
 		url = option.Url
-	} else if flag, _ := isEmbedFSEmpty(option.FrontFiles); flag {
-		return nil, "", fmt.Errorf("前端文件为空，且未指定访问的url")
+		//} else if flag, _ := isEmbedFSEmpty(option.FrontFiles); flag {
+		//	return nil, "", fmt.Errorf("前端文件为空，且未指定访问的url")
 	} else {
+		// 判断GO当前环境
+
 		if option.FrontPrefix == "" {
-			option.FrontPrefix = "front"
+			option.FrontPrefix = "frontend"
 		}
 		addr := front.RunEmbedFileServer(option.FrontFiles, option.FrontPrefix)
 		url = "http://" + addr
@@ -277,7 +290,7 @@ func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, strin
 
 	uuidStr := uuid.New().String()
 	// 为了解决重复复用窗口的问题
-	randomSite := fmt.Sprintf("https://www.baidu.com/%s", uuidStr)
+	randomSite := fmt.Sprintf("file://%s", uuidStr)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false),
 		chromedp.Flag("enable-automation", false),

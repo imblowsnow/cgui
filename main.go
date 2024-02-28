@@ -7,13 +7,15 @@ import (
 	"main/chromium"
 )
 
-//go:embed front/*
+//go:embed all:frontend/dist
 var frontFiles embed.FS
 
 func main() {
 	err := chromium.Run(chromium.ChromiumOptions{
 		//Url:               "https://www.browserscan.net/zh",
-		FrontFiles: frontFiles,
+		FrontFiles:  frontFiles,
+		FrontPrefix: "frontend/dist",
+		//UserDataDir: utils.GetCurrentBrowserFlagDir("default"),
 		ChromeOpts: []chromedp.ExecAllocatorOption{
 			// 禁用跨域安全策略
 			// chromedp.Flag("disable-web-security", true),

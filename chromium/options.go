@@ -21,11 +21,12 @@ type ChromiumOptions struct {
 
 	ChromePath string
 
-	// 窗口大小
+	// 窗口大小 为空宽高自适应
 	Width  int
 	Height int
-	X      int
-	Y      int
+	// 窗口位置 为空居中
+	X int
+	Y int
 
 	// 前端文件
 	FrontFiles embed.FS

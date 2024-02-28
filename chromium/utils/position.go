@@ -16,10 +16,11 @@ func GetScreen() image.Rectangle {
 
 func GetCenterPosition(width int, height int) (int, int) {
 	bounds := GetScreen()
-	fmt.Println("屏幕的宽高", bounds.Dx(), bounds.Dy())
+	fmt.Println("屏幕的宽高", bounds.Dx(), bounds.Dy(), width, height)
 	// 计算左上角的位置
-	topLeftX := (bounds.Dx() - width) / 2 / 2
-	topLeftY := (bounds.Dy() - height) / 2 / 2 / 2
+	topLeftX := (bounds.Dx() - width) / 2
+	topLeftY := (bounds.Dy() - height) / 2
+	fmt.Println("左上角的位置", topLeftX, topLeftY)
 	return topLeftX, topLeftY
 }
 
