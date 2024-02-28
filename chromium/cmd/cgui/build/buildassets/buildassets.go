@@ -5,7 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/fs"
 	"github.com/imblowsnow/cgui/chromium/internal/build"
 	iofs "io/fs"
 	"os"

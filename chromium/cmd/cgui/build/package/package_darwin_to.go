@@ -2,8 +2,8 @@ package _package
 
 import (
 	"bytes"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/buildassets"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/buildassets"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/fs"
 	"github.com/imblowsnow/cgui/chromium/internal/build"
 	"github.com/jackmordaunt/icns"
 	"github.com/pkg/errors"

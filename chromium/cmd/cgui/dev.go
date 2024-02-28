@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/imblowsnow/cgui/chromium/cmd/build"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/flags"
+	build3 "github.com/imblowsnow/cgui/chromium/cmd/cgui/build"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/flags"
 	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"os"
 	"path/filepath"
@@ -35,7 +35,7 @@ func devApplication(dev *flags.Dev) error {
 
 	if !options.IgnoreFrontend {
 		// 编译前端资源文件
-		frontBuilder := build.NewFrontBuilder(options)
+		frontBuilder := build3.NewFrontBuilder(options)
 
 		closer, devServerURL, _, err := frontBuilder.RunFrontend(true)
 		if err != nil {
@@ -50,7 +50,7 @@ func devApplication(dev *flags.Dev) error {
 	}
 
 	// 调用go 启动应用
-	builder := build.NewBuilder(options)
+	builder := build3.NewBuilder(options)
 	err = builder.RunProject()
 	if err != nil {
 		return err

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/imblowsnow/cgui/chromium/cmd/build"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/flags"
+	build3 "github.com/imblowsnow/cgui/chromium/cmd/cgui/build"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/flags"
 	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"github.com/pterm/pterm"
 	"os"
@@ -35,14 +35,14 @@ func buildApplication(f *flags.Build) error {
 
 	if !options.IgnoreFrontend {
 		// 编译前端资源文件
-		frontBuilder := build.NewFrontBuilder(options)
+		frontBuilder := build3.NewFrontBuilder(options)
 		err = frontBuilder.BuildFrontend(true)
 		if err != nil {
 			return err
 		}
 	}
 
-	builder := build.NewBuilder(options)
+	builder := build3.NewBuilder(options)
 	// 忽略应用程序
 	if !options.IgnoreApplication {
 		pterm.Info.Print("Building application: ")

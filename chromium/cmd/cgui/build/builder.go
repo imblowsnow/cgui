@@ -2,9 +2,9 @@ package build
 
 import (
 	"fmt"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/fs"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/package"
-	"github.com/imblowsnow/cgui/chromium/cmd/build/shell"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/fs"
+	_package2 "github.com/imblowsnow/cgui/chromium/cmd/cgui/build/package"
+	"github.com/imblowsnow/cgui/chromium/cmd/cgui/build/shell"
 	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 	"github.com/leaanthony/slicer"
 	"github.com/pkg/errors"
@@ -29,9 +29,9 @@ func (b *Builder) PackageProject(platform string) error {
 	var err error
 	switch platform {
 	case "darwin":
-		err = _package.PackageApplicationForDarwin(b.options)
+		err = _package2.PackageApplicationForDarwin(b.options)
 	case "windows":
-		err = _package.PackageApplicationForWindows(b.options)
+		err = _package2.PackageApplicationForWindows(b.options)
 	case "linux":
 		// linux 直接打包就可以了，不需要编译应用信息
 		//err = packageApplicationForLinux(options)
