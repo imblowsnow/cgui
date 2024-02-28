@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func Run(option ChromiumOptions) error {
+func Run(option *ChromiumOptions) error {
 	fmt.Println("Run dev mode", os.Getenv("devUrl"))
 	if os.Getenv("devUrl") != "" {
 		option.Url = os.Getenv("devUrl")

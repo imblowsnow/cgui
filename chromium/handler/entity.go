@@ -16,8 +16,8 @@ type FetchRequestEvent struct {
 	flag  bool
 }
 
-func (f *FetchRequestEvent) Next(event *FetchRequestEvent) {
-	f.next(event)
+func (f *FetchRequestEvent) Next() {
+	f.next(f)
 }
 
 func (f *FetchRequestEvent) AddRequestHeader(name string, value string) {

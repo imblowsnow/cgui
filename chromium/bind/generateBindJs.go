@@ -1,4 +1,4 @@
-package chromium
+package bind
 
 import (
 	"reflect"

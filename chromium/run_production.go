@@ -7,7 +7,7 @@ import (
 	build2 "github.com/imblowsnow/cgui/chromium/internal/build"
 )
 
-func Run(option ChromiumOptions) error {
+func Run(option *ChromiumOptions) error {
 	// 如果是开发模式，需要启动开发模式
 	if option.FrontPrefix == "" {
 		rawBytes, err := option.FrontFiles.ReadFile("project.json")

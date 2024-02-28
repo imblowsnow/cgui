@@ -15,6 +15,8 @@ func GetScreen() image.Rectangle {
 }
 
 func GetCenterPosition(width int, height int) (int, int) {
+	// 获取电脑缩放比例
+	//scale := GetScale()
 	bounds := GetScreen()
 	fmt.Println("屏幕的宽高", bounds.Dx(), bounds.Dy(), width, height)
 	// 计算左上角的位置

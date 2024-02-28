@@ -11,17 +11,14 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
-	"github.com/google/uuid"
 	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
-	"github.com/imblowsnow/cgui/chromium/front"
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/imblowsnow/cgui/chromium/utils"
 	"io/fs"
 	"os"
 	"os/signal"
 	"reflect"
-	"strconv"
 	"strings"
 	"syscall"
 )
@@ -29,8 +26,8 @@ import (
 //go:embed script/*.js
 var goFiles embed.FS
 
-func runBrowser(option ChromiumOptions) error {
-	opts, url, error := buildOptions(option)
+func runBrowser(option *ChromiumOptions) error {
+	opts, url, error := option.buildOptions()
 	if error != nil {
 		return error
 	}
@@ -64,6 +61,11 @@ func runBrowser(option ChromiumOptions) error {
 
 	chromedp.Run(ctx, chromedp.Navigate(url))
 
+	if option.DevTools {
+		// 打开开发者工具
+
+	}
+
 	listenClose(ctx)
 
 	fmt.Println("chrome is closed")
@@ -85,7 +87,7 @@ func getIframeContext(ctx context.Context, iframeID string) context.Context {
 	}
 	return nil
 }
-func injectTarget(ctx context.Context, option ChromiumOptions, frameID string) {
+func injectTarget(ctx context.Context, option *ChromiumOptions, frameID string) {
 	if frameID != "" {
 		var tempCtx context.Context
 
@@ -119,7 +121,7 @@ func injectTarget(ctx context.Context, option ChromiumOptions, frameID string) {
 	fmt.Println("注入 js to go 能力")
 	if option.Binds != nil {
 		// 生成绑定js
-		runtime.Evaluate(GenerateBindJs(option.Binds)).Do(executorCtx)
+		runtime.Evaluate(bind.GenerateBindJs(option.Binds)).Do(executorCtx)
 	}
 
 	goJs := []byte{}
@@ -133,29 +135,33 @@ func injectTarget(ctx context.Context, option ChromiumOptions, frameID string) {
 	goJsStr = strings.ReplaceAll(goJsStr, "{mode}", utils.Mode())
 	runtime.Evaluate(goJsStr).Do(executorCtx)
 }
-func listenTarget(ctx context.Context, option ChromiumOptions) {
+func listenTarget(ctx context.Context, option *ChromiumOptions) {
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
 		chromeCtx := chromedp.FromContext(ctx)
 		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 
 		var corsFilter = func(event *handler.FetchRequestEvent) {
-			if option.CorsFilter(ev.(*fetch.EventRequestPaused)) {
+			if option.CorsFilter != nil && option.CorsFilter(ev.(*fetch.EventRequestPaused)) {
 				handler.CorsHandler(event)
 			}
-			event.Next(event)
+			event.Next()
 		}
 
 		var requestFetchHandler = handler.FetchHandler{}
 
-		requestFetchHandler.Add(bind.BindJsToGoHandler)
+		requestFetchHandler.Add(handler.BindHandler)
 		// cors 过滤
 		requestFetchHandler.Add(corsFilter)
-		requestFetchHandler.Add(option.OnRequestIntercept)
+		for _, requestHandler := range option.RequestHandlers {
+			requestFetchHandler.Add(requestHandler)
+		}
 
 		var responseFetchHandler = handler.FetchHandler{}
 		// cors 过滤
 		responseFetchHandler.Add(corsFilter)
-		responseFetchHandler.Add(option.OnResponseIntercept)
+		for _, responseHandler := range option.ResponseHandlers {
+			responseFetchHandler.Add(responseHandler)
+		}
 
 		// 获取事件的类型
 		//eventType := reflect.TypeOf(ev).String()
@@ -166,21 +172,20 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 			switch ev := ev.(type) {
 			// 注意，有2中事件，一种是请求，一种是响应通过 ev.ResponseStatusCode 区分
 			case *fetch.EventRequestPaused:
-				if strings.HasSuffix(ev.Request.URL, "/sub-jstogo") {
-					OnRequestGoUrl(ev, executorCtx, option.Binds)
-					return
-				}
-
 				var event *handler.FetchRequestEvent
 				if ev.ResponseStatusCode > 0 {
 					event = responseFetchHandler.Handle(ev, executorCtx)
 				} else {
 					event = requestFetchHandler.Handle(ev, executorCtx)
 				}
-				if !event.IsHandle() {
-					fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(ctx)
+				var err error
+				if event.IsHandle() {
+					err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(executorCtx)
 				} else {
-					fetch.ContinueRequest(ev.RequestID).Do(ctx)
+					err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+				}
+				if err != nil {
+					fmt.Println("fetch handle error:", ev.Request.URL, err)
 				}
 			case *page.EventLifecycleEvent:
 				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
@@ -236,74 +241,6 @@ func listenClose(ctx context.Context) {
 
 	// 等待信号量
 	<-sem
-}
-
-func buildOptions(option ChromiumOptions) ([]chromedp.ExecAllocatorOption, string, error) {
-	url := "https://www.baidu.com"
-	if option.Url != "" {
-		url = option.Url
-		//} else if flag, _ := isEmbedFSEmpty(option.FrontFiles); flag {
-		//	return nil, "", fmt.Errorf("前端文件为空，且未指定访问的url")
-	} else {
-		// 判断GO当前环境
-
-		if option.FrontPrefix == "" {
-			option.FrontPrefix = "frontend"
-		}
-		addr := front.RunEmbedFileServer(option.FrontFiles, option.FrontPrefix)
-		url = "http://" + addr
-	}
-	fmt.Println("url:", url)
-	var width, height int
-	var centerX, centerY int
-	if option.Width > 0 && option.Height > 0 {
-		width = option.Width
-		height = option.Height
-	} else {
-		width, height = utils.GetAutoWidthHeight()
-	}
-	if option.X > 0 && option.Y > 0 {
-		centerX = option.X
-		centerY = option.Y
-	} else {
-		centerX, centerY = utils.GetCenterPosition(width, height)
-	}
-	if option.ChromePath == "" {
-		option.ChromePath = utils.FindExecPath()
-	}
-	if option.ChromePath == "" {
-		return nil, "", fmt.Errorf("未安装google浏览器，请自行安装")
-	}
-
-	uuidStr := uuid.New().String()
-	// 为了解决重复复用窗口的问题
-	randomSite := fmt.Sprintf("file://%s", uuidStr)
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", false),
-		chromedp.Flag("enable-automation", false),
-		chromedp.Flag("hide-scrollbars", false),
-		chromedp.Flag("mute-audio", false),
-		chromedp.Flag("disable-infobars", true),
-		chromedp.Flag("new-window", true),
-		// 以应用模式显示浏览器
-		chromedp.Flag("app", randomSite),
-		chromedp.Flag("window-size", strconv.Itoa(width)+","+strconv.Itoa(height)),
-		// 窗口居中  x,y
-		chromedp.Flag("window-position", strconv.Itoa(centerX)+","+strconv.Itoa(centerY)),
-
-		chromedp.ExecPath(option.ChromePath),
-	)
-	if option.UserAgent != "" {
-		opts = append(opts, chromedp.UserAgent(option.UserAgent))
-	}
-	if option.UserDataDir != "" {
-		opts = append(opts, chromedp.Flag("user-data-dir", option.UserDataDir))
-	}
-	if len(option.ChromeOpts) > 0 {
-		opts = append(opts, option.ChromeOpts...)
-	}
-
-	return opts, url, nil
 }
 
 // IsEmbedFSEmpty checks if an embed.FS is empty.
