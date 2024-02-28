@@ -5,13 +5,14 @@ import (
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/tawesoft/golib/v2/dialog"
+	"testing"
 )
 
 //go:embed all:frontend/dist
 //go:embed project.json
 var frontFiles embed.FS
 
-func main() {
+func TestRun(t *testing.T) {
 	err := chromium.Run(chromium.ChromiumOptions{
 		FrontFiles:  frontFiles,
 		FrontPrefix: "frontend/dist",

@@ -1,10 +1,10 @@
 package chromium
 
 import (
-	"context"
 	"embed"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/cgui/chromium/handler"
 )
 
 type ChromiumOptions struct {
@@ -47,12 +47,12 @@ type ChromiumOptions struct {
 	//	fmt.Println("RequestPaused body:", base64.StdEncoding.EncodeToString(body))
 	//	// 传输回去需要base64编码
 	//	fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(body)).Do(executorCtx)
-	OnRequestIntercept func(*fetch.EventRequestPaused, context.Context) bool
+	OnRequestIntercept func(event *handler.FetchRequestEvent)
 
 	//  false 不拦截，true 拦截，自己处理
 	// body, err := fetch.GetResponseBody(ev.RequestID).Do(ctx)
 	//	fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(body)).Do(executorCtx)
-	OnResponseIntercept func(*fetch.EventRequestPaused, context.Context) bool
+	OnResponseIntercept func(event *handler.FetchRequestEvent)
 
 	// 绑定方法
 	Binds []interface{}

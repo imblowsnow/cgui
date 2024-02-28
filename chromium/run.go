@@ -12,8 +12,10 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/google/uuid"
+	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
 	"github.com/imblowsnow/cgui/chromium/front"
+	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/imblowsnow/cgui/chromium/utils"
 	"io/fs"
 	"os"
@@ -136,6 +138,25 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 		chromeCtx := chromedp.FromContext(ctx)
 		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 
+		var corsFilter = func(event *handler.FetchRequestEvent) {
+			if option.CorsFilter(ev.(*fetch.EventRequestPaused)) {
+				handler.CorsHandler(event)
+			}
+			event.Next(event)
+		}
+
+		var requestFetchHandler = handler.FetchHandler{}
+
+		requestFetchHandler.Add(bind.BindJsToGoHandler)
+		// cors 过滤
+		requestFetchHandler.Add(corsFilter)
+		requestFetchHandler.Add(option.OnRequestIntercept)
+
+		var responseFetchHandler = handler.FetchHandler{}
+		// cors 过滤
+		responseFetchHandler.Add(corsFilter)
+		responseFetchHandler.Add(option.OnResponseIntercept)
+
 		// 获取事件的类型
 		//eventType := reflect.TypeOf(ev).String()
 		//fmt.Println("listenTarget Event type:", eventType)
@@ -150,31 +171,17 @@ func listenTarget(ctx context.Context, option ChromiumOptions) {
 					return
 				}
 
+				var event *handler.FetchRequestEvent
 				if ev.ResponseStatusCode > 0 {
-					// 如果处理跨域
-					if option.CorsFilter != nil && option.CorsFilter(ev) {
-						err := corsHandler(ev, executorCtx)
-						if err == nil {
-							return
-						} else {
-							fmt.Println("corsHandler error:", ev.Request.URL, err)
-						}
-					}
-					// 响应拦截
-					if option.OnResponseIntercept != nil {
-						if option.OnResponseIntercept(ev, executorCtx) {
-							return
-						}
-					}
+					event = responseFetchHandler.Handle(ev, executorCtx)
 				} else {
-					// 请求拦截
-					if option.OnRequestIntercept != nil {
-						if option.OnRequestIntercept(ev, executorCtx) {
-							return
-						}
-					}
+					event = requestFetchHandler.Handle(ev, executorCtx)
 				}
-				fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
+				if !event.IsHandle() {
+					fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(ctx)
+				} else {
+					fetch.ContinueRequest(ev.RequestID).Do(ctx)
+				}
 			case *page.EventLifecycleEvent:
 				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
 					event.OnPageLifecycleEvent(ctx, ev)
@@ -306,23 +313,6 @@ func isEmbedFSEmpty(eFS embed.FS) (bool, error) {
 		return false, err
 	}
 	return len(dirEntries) == 0, nil
-}
-
-func corsHandler(ev *fetch.EventRequestPaused, ctx context.Context) error {
-	body, err := fetch.GetResponseBody(ev.RequestID).Do(ctx)
-	if err != nil {
-		return err
-	}
-	// 追加响应头
-	for i, header := range ev.ResponseHeaders {
-		// 删除原来的跨域数据
-		if strings.ToLower(header.Name) == strings.ToLower("Access-Control-Allow-Origin") {
-			ev.ResponseHeaders = append(ev.ResponseHeaders[:i], ev.ResponseHeaders[i+1:]...)
-		}
-	}
-	ev.ResponseHeaders = append(ev.ResponseHeaders, &fetch.HeaderEntry{Name: "Access-Control-Allow-Origin", Value: "*"})
-	err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(body)).Do(ctx)
-	return err
 }
 
 func exitHandle() {
