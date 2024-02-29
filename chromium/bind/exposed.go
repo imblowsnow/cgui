@@ -5,9 +5,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/imblowsnow/cgui/chromium/utils"
 	"github.com/pterm/pterm"
 	"strings"
 )
@@ -52,11 +52,11 @@ func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
 	err := chromedp.Run(ctx,
 		runtime.AddBinding(extraName),
 		// 执行绑定的函数
-		evaluateOnFrames(exposeJS),
-		evaluateOnFrames(expression),
+		utils.EvaluateOnFrames(exposeJS),
+		utils.EvaluateOnFrames(expression),
 		// Make it effective after navigation.
-		addScriptToEvaluateOnNewDocument(exposeJS),
-		addScriptToEvaluateOnNewDocument(expression),
+		utils.AddScriptToEvaluateOnNewDocument(exposeJS),
+		utils.AddScriptToEvaluateOnNewDocument(expression),
 	)
 	if err != nil {
 		return err
@@ -119,15 +119,4 @@ func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
 	})
 
 	return nil
-}
-
-func addScriptToEvaluateOnNewDocument(script string) chromedp.Action {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		_, err := page.AddScriptToEvaluateOnNewDocument(script).Do(ctx)
-		return err
-	})
-}
-
-func evaluateOnFrames(script string) chromedp.Action {
-	return chromedp.Evaluate(script, nil)
 }

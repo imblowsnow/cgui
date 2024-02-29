@@ -1,7 +1,7 @@
 (function (){
     const mode = "{mode}";
 
-    console.log("inject common.js success!  mode=", mode);
+    console.log("inject common.js success!  mode=", mode, location.href);
 
     if (mode !== "dev") {
         // 拦截右击菜单

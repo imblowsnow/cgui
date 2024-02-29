@@ -4,21 +4,19 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
 	"github.com/imblowsnow/cgui/chromium/handler"
+	"github.com/imblowsnow/cgui/chromium/utils"
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
-	"github.com/pterm/pterm"
 	"io/fs"
 	"os"
 	"os/signal"
@@ -100,35 +98,10 @@ func getIframeContext(ctx context.Context, iframeID string) context.Context {
 	tempChromeCtx := chromedp.FromContext(ictx)
 	if tempChromeCtx.Target == nil {
 		_ = chromedp.Run(
-			ictx, // <-- instead of ctx
-			chromedp.Reload(),
+			ictx,
 		)
 	}
 	return ictx
-}
-
-func getIframeExecutorContext(ctx context.Context, frameID string) context.Context {
-	if frameID != "" {
-		var tempCtx context.Context
-
-		for tempCtx == nil {
-			tempCtx = getIframeContext(ctx, frameID)
-			if tempCtx != nil {
-				ctx = tempCtx
-			}
-		}
-		tempChromeCtx := chromedp.FromContext(ctx)
-		if tempChromeCtx.Target == nil {
-			_ = chromedp.Run(
-				ctx, // <-- instead of ctx
-				chromedp.Reload(),
-			)
-		}
-	}
-	chromeCtx := chromedp.FromContext(ctx)
-	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
-
-	return executorCtx
 }
 
 func addInjectScript(ctx context.Context, option *ChromiumOptions) {
@@ -159,7 +132,12 @@ func addInjectScript(ctx context.Context, option *ChromiumOptions) {
 		scriptStr := string(scriptBytes)
 		// 替换变量
 		scriptStr = strings.ReplaceAll(scriptStr, "{mode}", env.Mode())
-		_, err := page.AddScriptToEvaluateOnNewDocument(scriptStr).Do(executorCtx)
+
+		err := chromedp.Run(ctx,
+			utils.EvaluateOnFrames(scriptStr),
+			// Make it effective after navigation.
+			utils.AddScriptToEvaluateOnNewDocument(scriptStr),
+		)
 		if err != nil {
 			fmt.Println("addInjectScript error", scriptFile, err.Error())
 		}
@@ -199,20 +177,6 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 		go func() {
 			// 请求监听器
 			switch ev := ev.(type) {
-			case *runtime.EventExecutionContextCreated:
-				var aux struct {
-					FrameID cdp.FrameID
-				}
-				if len(ev.Context.AuxData) == 0 {
-					break
-				}
-				if err := json.Unmarshal(ev.Context.AuxData, &aux); err != nil {
-					fmt.Errorf("could not decode executionContextCreated auxData %q: %v", ev.Context.AuxData, err)
-					break
-				}
-
-				pterm.Info.Println("EventExecutionContextCreated:", aux.FrameID)
-			// 注意，有2中事件，一种是请求，一种是响应通过 ev.ResponseStatusCode 区分
 			case *fetch.EventRequestPaused:
 				//if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
 				//	executorCtx = getIframeExecutorContext(ctx, ev.FrameID.String())
@@ -264,7 +228,7 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 					}
 				}
 			case *page.EventFrameStartedLoading:
-				pterm.Info.Println("EventFrameStartedLoading:", ev.FrameID)
+				// 创建了新的iframe
 				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
 					// 获取iframe的上下文
 					go func() {
