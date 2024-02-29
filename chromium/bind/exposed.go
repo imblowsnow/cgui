@@ -5,11 +5,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
-	"github.com/imblowsnow/cgui/chromium/utils"
 	"github.com/pterm/pterm"
 	"strings"
 )
@@ -54,8 +52,8 @@ func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
 	err := chromedp.Run(ctx,
 		runtime.AddBinding(extraName),
 		// 执行绑定的函数
-		//evaluateOnAllFrames(exposeJS),
-		//evaluateOnAllFrames(expression),
+		evaluateOnFrames(exposeJS),
+		evaluateOnFrames(expression),
 		// Make it effective after navigation.
 		addScriptToEvaluateOnNewDocument(exposeJS),
 		addScriptToEvaluateOnNewDocument(expression),
@@ -130,19 +128,6 @@ func addScriptToEvaluateOnNewDocument(script string) chromedp.Action {
 	})
 }
 
-func evaluateOnAllFrames(script string) chromedp.Action {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		c := chromedp.FromContext(ctx)
-
-		execContexts := utils.GetObjField(c.Target, "execContexts").(map[cdp.FrameID]runtime.ExecutionContextID)
-		actions := make([]chromedp.Action, 0, len(execContexts))
-		for _, executionContextID := range execContexts {
-			id := executionContextID
-			actions = append(actions, chromedp.Evaluate(script, nil, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-				return p.WithContextID(id)
-			}))
-		}
-
-		return chromedp.Tasks(actions).Do(ctx)
-	})
+func evaluateOnFrames(script string) chromedp.Action {
+	return chromedp.Evaluate(script, nil)
 }

@@ -4,11 +4,13 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium/bind"
@@ -16,12 +18,14 @@ import (
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
+	"github.com/pterm/pterm"
 	"io/fs"
 	"os"
 	"os/signal"
 	"reflect"
 	"strings"
 	"syscall"
+	"time"
 )
 
 //go:embed all:script
@@ -77,19 +81,30 @@ func runBrowser(option *ChromiumOptions) error {
 	return nil
 }
 func getIframeContext(ctx context.Context, iframeID string) context.Context {
-	targets, _ := chromedp.Targets(ctx)
 	var tgt *target.Info
-	for _, t := range targets {
-		if t.TargetID.String() == iframeID {
-			tgt = t
-			break
+
+	// 循环等待iframe加载完成
+	for tgt == nil {
+		targets, _ := chromedp.Targets(ctx)
+		for _, t := range targets {
+			if t.TargetID.String() == iframeID {
+				tgt = t
+				break
+			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	if tgt != nil {
-		ictx, _ := chromedp.NewContext(ctx, chromedp.WithTargetID(tgt.TargetID))
-		return ictx
+
+	ictx, _ := chromedp.NewContext(ctx, chromedp.WithTargetID(tgt.TargetID))
+
+	tempChromeCtx := chromedp.FromContext(ictx)
+	if tempChromeCtx.Target == nil {
+		_ = chromedp.Run(
+			ictx, // <-- instead of ctx
+			chromedp.Reload(),
+		)
 	}
-	return nil
+	return ictx
 }
 
 func getIframeExecutorContext(ctx context.Context, frameID string) context.Context {
@@ -184,6 +199,19 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 		go func() {
 			// 请求监听器
 			switch ev := ev.(type) {
+			case *runtime.EventExecutionContextCreated:
+				var aux struct {
+					FrameID cdp.FrameID
+				}
+				if len(ev.Context.AuxData) == 0 {
+					break
+				}
+				if err := json.Unmarshal(ev.Context.AuxData, &aux); err != nil {
+					fmt.Errorf("could not decode executionContextCreated auxData %q: %v", ev.Context.AuxData, err)
+					break
+				}
+
+				pterm.Info.Println("EventExecutionContextCreated:", aux.FrameID)
 			// 注意，有2中事件，一种是请求，一种是响应通过 ev.ResponseStatusCode 区分
 			case *fetch.EventRequestPaused:
 				//if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
@@ -234,6 +262,17 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 					if option.App != nil && option.App.OnFrameLifecycleEvent != nil {
 						option.App.OnFrameLifecycleEvent(executorCtx, ev)
 					}
+				}
+			case *page.EventFrameStartedLoading:
+				pterm.Info.Println("EventFrameStartedLoading:", ev.FrameID)
+				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
+					// 获取iframe的上下文
+					go func() {
+						// 延迟
+						ictx := getIframeContext(ctx, ev.FrameID.String())
+						time.Sleep(3 * time.Second)
+						addInjectScript(ictx, option)
+					}()
 				}
 			case *network.EventResponseReceivedExtraInfo:
 				extraHeaderRequestMap[ev.RequestID.String()] = ev.Headers
