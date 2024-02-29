@@ -1,24 +1,20 @@
 (function (){
-    window._cgui_runtime = window._cgui_runtime || {}
-    window._cgui = window._cgui || {
+    window._cgui = window._cgui || {}
+    window._cexposed = window._cexposed || {
         callbacks: new Map(),
         deliverError: function (name, seq, message) {
             const error = new Error(message);
-            _cgui.callbacks.get(seq).reject(error);
-            _cgui.callbacks.delete(seq);
+            _cexposed.callbacks.get(seq).reject(error);
+            _cexposed.callbacks.delete(seq);
         },
         deliverResult: function (name, seq, result) {
-            _cgui.callbacks.get(seq).resolve(result);
-            _cgui.callbacks.delete(seq);
+            _cexposed.callbacks.get(seq).resolve(result);
+            _cexposed.callbacks.delete(seq);
         },
         wrapBinding(type, name, originName){
-            _cgui_runtime[originName] = function (args){
+            this.setNestedProperty(window._cgui, originName, function (args){
                 if (typeof args != 'string') {
-                    return Promise.reject(
-                        new Error(
-                            'function takes exactly one argument, this argument should be string'
-                        )
-                    );
+                    args = JSON.stringify(args);
                 }
 
                 const seq = Date.now() + Math.random().toString(36).substr(2);
@@ -26,10 +22,23 @@
                 window[name](JSON.stringify({ type, seq, args }));
 
                 return new Promise((resolve, reject) => {
-                    _cgui.callbacks.set(seq, { resolve, reject });
+                    _cexposed.callbacks.set(seq, { resolve, reject });
                 });
-            };
+            });
+        },
+        setNestedProperty(obj, path, value) {
+            const pathParts = path.split('.');
+            const lastPart = pathParts.pop();
 
+            let currentPart = obj;
+            for (const part of pathParts) {
+                if (!(part in currentPart)) {
+                    currentPart[part] = {};
+                }
+                currentPart = currentPart[part];
+            }
+
+            currentPart[lastPart] = value;
         }
     }
 })()

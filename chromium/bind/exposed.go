@@ -45,9 +45,11 @@ func init() {
 // 6. Maybe you just need runtime.AddBinding.
 //
 // [page.exposeFunction]: https://github.com/puppeteer/puppeteer/blob/v19.2.2/docs/api/puppeteer.page.exposefunction.md
+const exposePrefix = "_cexposed"
+
 func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
-	extraName := "_cgui_" + strings.ReplaceAll(fnName, ".", "_")
-	expression := fmt.Sprintf(`_cgui.wrapBinding("exposedFun","%s","%s");`, extraName, fnName)
+	extraName := exposePrefix + "_" + strings.ReplaceAll(fnName, ".", "_")
+	expression := fmt.Sprintf(exposePrefix+`.wrapBinding("exposedFun","%s","%s");`, extraName, fnName)
 
 	err := chromedp.Run(ctx,
 		runtime.AddBinding(extraName),
@@ -89,10 +91,10 @@ func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
 			pterm.Debug.Println("Expose function Exec", fnName, result)
 
 			// 响应结果
-			callback := "_cgui.deliverResult"
+			callback := exposePrefix + ".deliverResult"
 			if err != nil {
 				result = err.Error()
-				callback = "_cgui.deliverError"
+				callback = exposePrefix + ".deliverError"
 			}
 
 			// Prevent the message from being processed by other functions
