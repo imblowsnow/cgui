@@ -4,13 +4,16 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/tawesoft/golib/v2/dialog"
 	"strings"
+	"time"
 )
 
 //go:embed all:frontend
@@ -39,7 +42,7 @@ func main() {
 		//UserDataDir: utils.GetCurrentBrowserFlagDir("default"),
 		ChromeOpts: []chromedp.ExecAllocatorOption{
 			// 禁用跨域安全策略
-			// chromedp.Flag("disable-web-security", true),
+			//chromedp.Flag("disable-web-security", true),
 			// 隐身模式
 			// chromedp.Flag("incognito", true),
 		},
@@ -56,46 +59,59 @@ func main() {
 		ResponseHandlers: []func(event *handler.FetchRequestEvent){
 			func(event *handler.FetchRequestEvent) {
 				if strings.HasPrefix(event.Event.Request.URL, "https://www.xiaohongshu.com/") {
-					//cookies := event.GetSetCookies()
-					//event.AddResponseHeader("Set-Cookie", cookies+"; sameSite=None")
-					//// Split the cookie string into individual properties
-					//properties := strings.Split(cookies, ";")
-					//
-					//cookieParam := &network.CookieParam{}
-					//
-					//// event.Event.Request.URL 使用 / 结尾
-					//domainUrl := strings.TrimRight(event.Event.Request.URL, "/")
-					//cookieParam.URL = domainUrl
-					//cookieParam.SameSite = network.CookieSameSiteNone
-					//// Iterate over the properties and set the corresponding fields in the CookieParam
-					//for i, property := range properties {
-					//	parts := strings.SplitN(property, "=", 2)
-					//	key, value := parts[0], parts[1]
-					//	key = strings.TrimSpace(key)
-					//	if i == 0 {
-					//		cookieParam.Name = key
-					//		cookieParam.Value = value
-					//		continue
-					//	}
-					//
-					//	switch key {
-					//	case "path":
-					//		cookieParam.Path = value
-					//	case "expires":
-					//		fmt.Println("Error parsing date:", value)
-					//	case "domain":
-					//		cookieParam.Domain = value
-					//	}
-					//}
-					//
-					//// 设置cookie到网站里面
-					//err := network.SetCookies([]*network.CookieParam{
-					//	cookieParam,
-					//}).Do(event.Ctx)
-					//if err != nil {
-					//	fmt.Println("SetCookies error", err.Error())
-					//}
-					//fmt.Println("on response", event.Event.NetworkID, event.Event.RequestID, event.Event.Request.URL, cookies)
+					cookies := event.GetSetCookies()
+					event.AddResponseHeader("Set-Cookie", cookies+"; sameSite=None")
+
+					go func() {
+						ctx := event.Ctx
+						if !event.IsPageFrame() {
+							ctx = chromium.GetIframeExecutorContext(event.Ctx, event.Event.FrameID.String())
+						}
+						// Split the cookie string into individual properties
+						properties := strings.Split(cookies, ";")
+
+						cookieParam := &network.CookieParam{}
+
+						// event.Event.Request.URL 使用 / 结尾
+						domainUrl := strings.TrimRight(event.Event.Request.URL, "/")
+						cookieParam.URL = domainUrl
+						cookieParam.SameSite = network.CookieSameSiteNone
+						// Iterate over the properties and set the corresponding fields in the CookieParam
+						for i, property := range properties {
+							parts := strings.SplitN(property, "=", 2)
+							key, value := parts[0], parts[1]
+							key = strings.TrimSpace(key)
+							if i == 0 {
+								cookieParam.Name = key
+								cookieParam.Value = value
+								continue
+							}
+
+							switch key {
+							case "path":
+								cookieParam.Path = value
+							case "expires":
+								// 解析 Fri, 28 Feb 2025 06:01:26 GMT 为 time.Time
+								expires, err := time.Parse(time.RFC1123, value)
+								if err == nil {
+									tempExpires := cdp.TimeSinceEpoch(expires)
+									cookieParam.Expires = &tempExpires
+								}
+							case "domain":
+								cookieParam.Domain = value
+							}
+						}
+
+						fmt.Println("on response", event.Event.NetworkID, event.Event.RequestID, event.Event.Request.URL, cookies)
+
+						// 设置cookie到网站里面
+						err := network.SetCookies([]*network.CookieParam{
+							cookieParam,
+						}).Do(ctx)
+						if err != nil {
+							fmt.Println("SetCookies error", err.Error())
+						}
+					}()
 				}
 				event.Next()
 			},

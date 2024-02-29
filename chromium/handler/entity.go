@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/chromedp"
 	"strings"
 )
 
@@ -59,4 +60,10 @@ func (f *FetchRequestEvent) IsHandle() bool {
 func (f *FetchRequestEvent) GetSetCookies() string {
 	cookies := f.ExtraResponseHeaders["set-cookie"]
 	return cookies
+}
+
+// 是否是主框架
+func (f *FetchRequestEvent) IsPageFrame() bool {
+	chromeCtx := chromedp.FromContext(f.Ctx)
+	return f.Event.FrameID.String() == chromeCtx.Target.TargetID.String()
 }

@@ -78,7 +78,7 @@ func runBrowser(option *ChromiumOptions) error {
 
 	return nil
 }
-func getIframeContext(ctx context.Context, iframeID string) context.Context {
+func GetIframeContext(ctx context.Context, iframeID string) context.Context {
 	var tgt *target.Info
 
 	// 循环等待iframe加载完成
@@ -103,7 +103,15 @@ func getIframeContext(ctx context.Context, iframeID string) context.Context {
 	}
 	return ictx
 }
+func GetIframeExecutorContext(ctx context.Context, iframeID string) context.Context {
+	frameCtx := GetIframeContext(ctx, iframeID)
 
+	chromeCtx := chromedp.FromContext(frameCtx)
+
+	executorCtx := cdp.WithExecutor(frameCtx, chromeCtx.Target)
+
+	return executorCtx
+}
 func addInjectScript(ctx context.Context, option *ChromiumOptions) {
 	chromeCtx := chromedp.FromContext(ctx)
 	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
@@ -164,11 +172,10 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 		responseFetchHandler.Add(responseHandler)
 	}
 
-	chromeCtx := chromedp.FromContext(ctx)
-
 	var extraHeaderRequestMap = make(map[string]network.Headers)
 
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
+		chromeCtx := chromedp.FromContext(ctx)
 		executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
 		// 获取事件的类型
 		//eventType := reflect.TypeOf(ev).String()
@@ -231,12 +238,8 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 				// 创建了新的iframe
 				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
 					// 获取iframe的上下文
-					go func() {
-						// 延迟
-						ictx := getIframeContext(ctx, ev.FrameID.String())
-						time.Sleep(3 * time.Second)
-						addInjectScript(ictx, option)
-					}()
+					ictx := GetIframeContext(ctx, ev.FrameID.String())
+					addInjectScript(ictx, option)
 				}
 			case *network.EventResponseReceivedExtraInfo:
 				extraHeaderRequestMap[ev.RequestID.String()] = ev.Headers
