@@ -51,6 +51,7 @@ type ChromiumOptions struct {
 	ResponseHandlers []func(event *handler.FetchRequestEvent)
 
 	// 绑定方法
+	// func(args string) (string, error)
 	Binds []interface{}
 
 	App *App

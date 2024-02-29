@@ -9,7 +9,6 @@ import (
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium/bind"
@@ -29,9 +28,9 @@ import (
 var goFiles embed.FS
 
 func runBrowser(option *ChromiumOptions) error {
-	opts, url, error := option.buildOptions()
-	if error != nil {
-		return error
+	opts, url, err := option.buildOptions()
+	if err != nil {
+		return err
 	}
 
 	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
@@ -49,11 +48,14 @@ func runBrowser(option *ChromiumOptions) error {
 	// 监听请求和响应，支持拦截
 	fetchEnable := fetch.Enable().WithPatterns([]*fetch.RequestPattern{{URLPattern: "*", RequestStage: "Response"}, {URLPattern: "*", RequestStage: "Request"}})
 	// navigate to a page, wait for an element, click
-	err := chromedp.Run(ctx, fetchEnable)
+	err = chromedp.Run(ctx, fetchEnable)
 
 	if err != nil {
 		return err
 	}
+
+	// 注入JS
+	addInjectScript(ctx, option)
 
 	defer func() {
 		chromedp.Cancel(ctx)
@@ -114,63 +116,38 @@ func getIframeExecutorContext(ctx context.Context, frameID string) context.Conte
 	return executorCtx
 }
 
-func injectTarget(ctx context.Context, option *ChromiumOptions, frameID string) {
-	if frameID != "" {
-		var tempCtx context.Context
-
-		for tempCtx == nil {
-			tempCtx = getIframeContext(ctx, frameID)
-			if tempCtx != nil {
-				ctx = tempCtx
-			}
-		}
-		fmt.Println("injectTarget frameID:", frameID)
-		tempChromeCtx := chromedp.FromContext(ctx)
-		if tempChromeCtx.Target == nil {
-			_ = chromedp.Run(
-				ctx, // <-- instead of ctx
-				chromedp.Reload(),
-			)
-		}
-	}
+func addInjectScript(ctx context.Context, option *ChromiumOptions) {
 	chromeCtx := chromedp.FromContext(ctx)
 	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
+
 	if option.RandomFingerprint {
 		figerprintJs, _ := goFiles.ReadFile("script/inject/fingerprint.js")
 		figerprintJsStr := string(figerprintJs)
-		_, e, err := runtime.Evaluate(figerprintJsStr).Do(executorCtx)
+
+		_, err := page.AddScriptToEvaluateOnNewDocument(figerprintJsStr).Do(executorCtx)
 		if err != nil {
-			fmt.Println("fingerprint error:", err)
-			fmt.Println("fingerprint error:", e)
+			fmt.Println("addInjectScript RandomFingerprint error", err.Error())
 		}
 	}
 
-	fmt.Println("注入 js to go 能力")
+	//fmt.Println("注入 js to go 能力")
 	if option.Binds != nil {
 		// 生成绑定js
-		runtime.Evaluate(bind.GenerateBindJs(option.Binds)).Do(executorCtx)
+		bind.Bind(ctx, option.Binds)
 	}
 
 	var scriptFiles = slicer.String()
 	scriptFiles.Add("script/inject/common.js")
-
-	if frameID == "" {
-		scriptFiles.Add("script/inject/page.js")
-	} else {
-		scriptFiles.Add("script/inject/frame.js")
-	}
 
 	for _, scriptFile := range scriptFiles.AsSlice() {
 		scriptBytes, _ := goFiles.ReadFile(scriptFile)
 		scriptStr := string(scriptBytes)
 		// 替换变量
 		scriptStr = strings.ReplaceAll(scriptStr, "{mode}", env.Mode())
-		runtime.Evaluate(scriptStr).Do(executorCtx)
-	}
-
-	// 执行app的ready方法
-	if option.App != nil && option.App.OnReady != nil {
-		option.App.OnReady(executorCtx)
+		_, err := page.AddScriptToEvaluateOnNewDocument(scriptStr).Do(executorCtx)
+		if err != nil {
+			fmt.Println("addInjectScript error", scriptFile, err.Error())
+		}
 	}
 }
 func listenTarget(ctx context.Context, option *ChromiumOptions) {
@@ -183,7 +160,6 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 
 	var requestFetchHandler = handler.FetchHandler{}
 
-	requestFetchHandler.Add(handler.BindHandler)
 	for _, requestHandler := range option.RequestHandlers {
 		requestFetchHandler.Add(requestHandler)
 	}
@@ -210,9 +186,9 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 			switch ev := ev.(type) {
 			// 注意，有2中事件，一种是请求，一种是响应通过 ev.ResponseStatusCode 区分
 			case *fetch.EventRequestPaused:
-				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
-					executorCtx = getIframeExecutorContext(ctx, ev.FrameID.String())
-				}
+				//if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
+				//	executorCtx = getIframeExecutorContext(ctx, ev.FrameID.String())
+				//}
 				var event *handler.FetchRequestEvent
 				extraHeader := extraHeaderRequestMap[ev.NetworkID.String()]
 				if extraHeader != nil {
@@ -258,12 +234,6 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 					if option.App != nil && option.App.OnFrameLifecycleEvent != nil {
 						option.App.OnFrameLifecycleEvent(executorCtx, ev)
 					}
-				}
-			case *page.EventFrameStartedLoading:
-				if ev.FrameID.String() == chromeCtx.Target.TargetID.String() {
-					injectTarget(ctx, option, "")
-				} else {
-					injectTarget(ctx, option, ev.FrameID.String())
 				}
 			case *network.EventResponseReceivedExtraInfo:
 				extraHeaderRequestMap[ev.RequestID.String()] = ev.Headers
