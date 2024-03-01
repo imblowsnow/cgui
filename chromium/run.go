@@ -14,7 +14,6 @@ import (
 	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
 	"github.com/imblowsnow/cgui/chromium/handler"
-	"github.com/imblowsnow/cgui/chromium/runtime"
 	"github.com/imblowsnow/cgui/chromium/utils"
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
@@ -90,7 +89,7 @@ func addInjectScript(option *ChromiumOptions) chromedp.ActionFunc {
 		}
 
 		// 绑定 runtime
-		bind.Bind(ctx, getRuntimeBinds())
+		bind.Bind(ctx, bind.GetRuntimeBinds())
 
 		if option.Binds != nil {
 			// 绑定自定义方法
@@ -283,10 +282,4 @@ func exitHandle() {
 		}
 	}
 
-}
-
-func getRuntimeBinds() []interface{} {
-	return []interface{}{
-		runtime.WebviewTest{},
-	}
 }

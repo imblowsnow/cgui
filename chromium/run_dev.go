@@ -19,7 +19,11 @@ func Run(option *ChromiumOptions) error {
 	// 生成绑定文件
 	if os.Getenv("bindjsdir") != "" {
 		go func() {
-			bind.Generate(os.Getenv("bindjsdir"), option.Binds)
+			binds := option.Binds
+			// 生成runtime绑定
+			binds = append(binds, bind.GetRuntimeBinds()...)
+			// 生成自定义绑定
+			bind.Generate(os.Getenv("bindjsdir"), binds)
 		}()
 	}
 
