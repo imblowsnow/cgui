@@ -76,7 +76,7 @@ func Expose(ctx context.Context, fnName string, fn ExposedFunc) error {
 
 			err := json.Unmarshal([]byte(ev.Payload), &payload)
 			if err != nil {
-				pterm.Error.Println("failed to deliver result to exposed func %s: %s", fnName, err)
+				pterm.Error.Printf("failed to deliver result to exposed func %s: %s", fnName, err)
 				return
 			}
 

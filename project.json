@@ -2,7 +2,7 @@
   "name": "项目名称",
   "outputfilename": "项目名称",
   "assetdir": "frontend",
-  "wailsjsdir": "frontend/src",
+  "bindjsdir": "frontend/src",
   "frontend:install": "",
   "frontend:build": "",
   "frontend:dev": "",

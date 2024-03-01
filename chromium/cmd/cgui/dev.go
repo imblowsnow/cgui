@@ -31,8 +31,6 @@ func devApplication(dev *flags.Dev) error {
 		ProjectData:  projectInfo,
 	}
 
-	// TODO 生成 bindings
-
 	if !options.IgnoreFrontend {
 		// 编译前端资源文件
 		frontBuilder := build3.NewFrontBuilder(options)

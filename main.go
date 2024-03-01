@@ -78,6 +78,6 @@ func main() {
 }
 
 func Test(args string) (string, error) {
-	fmt.Println("Test", args)
-	return "Test", nil
+	fmt.Println("Hello", args)
+	return "Hello", nil
 }

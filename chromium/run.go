@@ -19,7 +19,6 @@ import (
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
 	"io/fs"
-	"log"
 	"os"
 	"os/signal"
 	"reflect"
@@ -40,8 +39,8 @@ func runBrowser(option *ChromiumOptions) error {
 	defer cancel()
 
 	// log the protocol messages to understand how it works.
-	//
-	ctx, cancel = chromedp.NewContext(ctx, chromedp.WithDebugf(log.Printf))
+	// , chromedp.WithDebugf(log.Printf)
+	ctx, cancel = chromedp.NewContext(ctx)
 	defer cancel()
 
 	// create a timeout
@@ -91,12 +90,10 @@ func addInjectScript(option *ChromiumOptions) chromedp.ActionFunc {
 		}
 
 		// 绑定 runtime
-		bind.Bind(ctx, []interface{}{
-			runtime.Test{},
-		})
+		bind.Bind(ctx, getRuntimeBinds())
 
 		if option.Binds != nil {
-			// 生成绑定js
+			// 绑定自定义方法
 			bind.Bind(ctx, option.Binds)
 		}
 
@@ -286,4 +283,10 @@ func exitHandle() {
 		}
 	}
 
+}
+
+func getRuntimeBinds() []interface{} {
+	return []interface{}{
+		runtime.WebviewTest{},
+	}
 }

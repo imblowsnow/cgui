@@ -232,6 +232,7 @@ func (b *Builder) RunProject() error {
 	newEnvs.Add("mode=dev")
 	newEnvs.Add("devUrl=" + b.options.ProjectData.FrontendDevServerURL)
 	newEnvs.Add("assetdir=" + b.options.ProjectData.AssetDirectory)
+	newEnvs.Add("bindjsdir=" + b.options.ProjectData.BindJSDir)
 
 	pterm.Info.Println("env:", strings.Join(newEnvs.AsSlice(), ";"))
 

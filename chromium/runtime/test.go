@@ -1,8 +1,11 @@
 package runtime
 
-type Test struct {
+type WebviewTest struct {
 }
 
-func (t Test) Test(name string) string {
+func (t WebviewTest) Hello(name string) string {
+	return "hello " + name
+}
+func (t WebviewTest) Eat(name string) string {
 	return "hello " + name
 }

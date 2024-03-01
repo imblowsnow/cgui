@@ -69,7 +69,7 @@ type Project struct {
 	FrontendDevServerURL string `json:"frontend:dev:serverUrl"`
 
 	// Directory to generate the API Module
-	WailsJSDir string `json:"wailsjsdir"`
+	BindJSDir string `json:"bindjsdir"`
 
 	Version string `json:"version"`
 
@@ -133,8 +133,8 @@ func (p *Project) setDefaults() {
 	if p.FrontendDir == "" {
 		p.FrontendDir = "frontend"
 	}
-	if p.WailsJSDir == "" {
-		p.WailsJSDir = p.FrontendDir
+	if p.BindJSDir == "" {
+		p.BindJSDir = p.FrontendDir
 	}
 	if p.BuildDir == "" {
 		p.BuildDir = "build"
