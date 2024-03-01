@@ -11,7 +11,6 @@ func main() {
 
 	app.NewSubCommandFunction("build", "Builds the application", buildApplication)
 	app.NewSubCommandFunction("dev", "Runs the application in development mode", devApplication)
-	app.NewSubCommandFunction("generate", "Generate Bind", devApplication)
 
 	err := app.Run()
 	if err != nil {

@@ -1,7 +1,10 @@
 ## 编译
-####  隐藏控制台
+####  命令行
 ```shell
-go run chromium/cmd/main.go
+go install github.com/imblowsnow/cgui/chromium/cmd/cgui@latest
+
+cgui dev
+cgui build
 ```
 
 
