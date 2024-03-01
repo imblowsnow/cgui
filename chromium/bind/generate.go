@@ -20,7 +20,7 @@ func Generate(basePath string, binds []interface{}) {
 			path += "." + "App"
 		}
 
-		tsStr := `export function ` + bindItem.MethodName + `(arg1:string):Promise<string>;` + "\n"
+		tsStr := `export function ` + bindItem.MethodName + `(arg1:any):Promise<string>;` + "\n"
 		appendGenerateFile(generateFiles, strings.ReplaceAll(path, ".", "/")+".d.ts", tsStr)
 
 		pathArr := strings.Split(bindItem.GetFullName(), ".")
