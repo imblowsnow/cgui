@@ -45,10 +45,10 @@ type ChromiumOptions struct {
 	CorsFilter func(*fetch.EventRequestPaused) bool
 
 	//  event.Next() // 继续执行
-	RequestHandlers []func(event *handler.FetchRequestEvent)
+	RequestHandlers []func(e *handler.FetchRequestEvent)
 
 	//  event.Next() // 继续执行
-	ResponseHandlers []func(event *handler.FetchRequestEvent)
+	ResponseHandlers []func(e *handler.FetchRequestEvent)
 
 	// 绑定方法
 	// func(args string) (string, error)

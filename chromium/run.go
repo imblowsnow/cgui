@@ -14,16 +14,17 @@ import (
 	"github.com/imblowsnow/cgui/chromium/bind"
 	"github.com/imblowsnow/cgui/chromium/event"
 	"github.com/imblowsnow/cgui/chromium/handler"
+	"github.com/imblowsnow/cgui/chromium/runtime"
 	"github.com/imblowsnow/cgui/chromium/utils"
 	"github.com/imblowsnow/cgui/chromium/utils/env"
 	"github.com/leaanthony/slicer"
 	"io/fs"
+	"log"
 	"os"
 	"os/signal"
 	"reflect"
 	"strings"
 	"syscall"
-	"time"
 )
 
 //go:embed all:script
@@ -39,8 +40,8 @@ func runBrowser(option *ChromiumOptions) error {
 	defer cancel()
 
 	// log the protocol messages to understand how it works.
-	// , chromedp.WithDebugf(log.Printf)
-	ctx, cancel = chromedp.NewContext(ctx)
+	//
+	ctx, cancel = chromedp.NewContext(ctx, chromedp.WithDebugf(log.Printf))
 	defer cancel()
 
 	// create a timeout
@@ -50,18 +51,15 @@ func runBrowser(option *ChromiumOptions) error {
 	// 监听请求和响应，支持拦截
 	fetchEnable := fetch.Enable().WithPatterns([]*fetch.RequestPattern{{URLPattern: "*", RequestStage: "Response"}, {URLPattern: "*", RequestStage: "Request"}})
 	// navigate to a page, wait for an element, click
-	err = chromedp.Run(ctx, fetchEnable)
-
-	if err != nil {
-		return err
-	}
-
-	// 注入JS
-	addInjectScript(ctx, option)
+	err = chromedp.Run(ctx, fetchEnable, addInjectScript(option))
 
 	defer func() {
 		chromedp.Cancel(ctx)
 	}()
+
+	if err != nil {
+		return err
+	}
 
 	listenTarget(ctx, option)
 
@@ -78,77 +76,50 @@ func runBrowser(option *ChromiumOptions) error {
 
 	return nil
 }
-func GetIframeContext(ctx context.Context, iframeID string) context.Context {
-	var tgt *target.Info
 
-	// 循环等待iframe加载完成
-	for tgt == nil {
-		targets, _ := chromedp.Targets(ctx)
-		for _, t := range targets {
-			if t.TargetID.String() == iframeID {
-				tgt = t
-				break
+func addInjectScript(option *ChromiumOptions) chromedp.ActionFunc {
+
+	return func(ctx context.Context) error {
+		if option.RandomFingerprint {
+			figerprintJs, _ := goFiles.ReadFile("script/inject/fingerprint.js")
+			figerprintJsStr := string(figerprintJs)
+
+			_, err := page.AddScriptToEvaluateOnNewDocument(figerprintJsStr).Do(ctx)
+			if err != nil {
+				fmt.Println("addInjectScript RandomFingerprint error", err.Error())
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
 
-	ictx, _ := chromedp.NewContext(ctx, chromedp.WithTargetID(tgt.TargetID))
+		// 绑定 runtime
+		bind.Bind(ctx, []interface{}{
+			runtime.Test{},
+		})
 
-	tempChromeCtx := chromedp.FromContext(ictx)
-	if tempChromeCtx.Target == nil {
-		_ = chromedp.Run(
-			ictx,
-		)
-	}
-	return ictx
-}
-func GetIframeExecutorContext(ctx context.Context, iframeID string) context.Context {
-	frameCtx := GetIframeContext(ctx, iframeID)
-
-	chromeCtx := chromedp.FromContext(frameCtx)
-
-	executorCtx := cdp.WithExecutor(frameCtx, chromeCtx.Target)
-
-	return executorCtx
-}
-func addInjectScript(ctx context.Context, option *ChromiumOptions) {
-	chromeCtx := chromedp.FromContext(ctx)
-	executorCtx := cdp.WithExecutor(ctx, chromeCtx.Target)
-
-	if option.RandomFingerprint {
-		figerprintJs, _ := goFiles.ReadFile("script/inject/fingerprint.js")
-		figerprintJsStr := string(figerprintJs)
-
-		_, err := page.AddScriptToEvaluateOnNewDocument(figerprintJsStr).Do(executorCtx)
-		if err != nil {
-			fmt.Println("addInjectScript RandomFingerprint error", err.Error())
+		if option.Binds != nil {
+			// 生成绑定js
+			bind.Bind(ctx, option.Binds)
 		}
-	}
 
-	//fmt.Println("注入 js to go 能力")
-	if option.Binds != nil {
-		// 生成绑定js
-		bind.Bind(ctx, option.Binds)
-	}
+		var scriptFiles = slicer.String()
+		scriptFiles.Add("script/inject/common.js")
 
-	var scriptFiles = slicer.String()
-	scriptFiles.Add("script/inject/common.js")
+		for _, scriptFile := range scriptFiles.AsSlice() {
+			scriptBytes, _ := goFiles.ReadFile(scriptFile)
+			scriptStr := string(scriptBytes)
+			// 替换变量
+			scriptStr = strings.ReplaceAll(scriptStr, "{mode}", env.Mode())
 
-	for _, scriptFile := range scriptFiles.AsSlice() {
-		scriptBytes, _ := goFiles.ReadFile(scriptFile)
-		scriptStr := string(scriptBytes)
-		// 替换变量
-		scriptStr = strings.ReplaceAll(scriptStr, "{mode}", env.Mode())
-
-		err := chromedp.Run(ctx,
-			utils.EvaluateOnFrames(scriptStr),
-			// Make it effective after navigation.
-			utils.AddScriptToEvaluateOnNewDocument(scriptStr),
-		)
-		if err != nil {
-			fmt.Println("addInjectScript error", scriptFile, err.Error())
+			err := chromedp.Run(ctx,
+				utils.EvaluateOnFrames(scriptStr),
+				// Make it effective after navigation.
+				utils.AddScriptToEvaluateOnNewDocument(scriptStr),
+			)
+			if err != nil {
+				fmt.Println("addInjectScript error", scriptFile, err.Error())
+			}
 		}
+
+		return nil
 	}
 }
 func listenTarget(ctx context.Context, option *ChromiumOptions) {
@@ -173,6 +144,7 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 	}
 
 	var extraHeaderRequestMap = make(map[string]network.Headers)
+	var extraHeaderResponseMap = make(map[string]network.Headers)
 
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
 		chromeCtx := chromedp.FromContext(ctx)
@@ -189,31 +161,36 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 				//	executorCtx = getIframeExecutorContext(ctx, ev.FrameID.String())
 				//}
 				var event *handler.FetchRequestEvent
-				extraHeader := extraHeaderRequestMap[ev.NetworkID.String()]
-				if extraHeader != nil {
-					// 删除原来的数据
-					delete(extraHeaderRequestMap, ev.NetworkID.String())
-				}
 				if ev.ResponseStatusCode > 0 {
-					event = responseFetchHandler.Handle(ev, executorCtx, extraHeader)
+					extraHeader := extraHeaderResponseMap[ev.NetworkID.String()]
+					if extraHeader != nil {
+						// 删除原来的数据
+						delete(extraHeaderResponseMap, ev.NetworkID.String())
+					}
+					event = responseFetchHandler.Handle(ev, ctx, executorCtx, func(event *handler.FetchRequestEvent) {
+						event.WithResponseExtraHeaders(extraHeader)
+					})
 				} else {
-					event = requestFetchHandler.Handle(ev, executorCtx, extraHeader)
+					extraHeader := extraHeaderRequestMap[ev.NetworkID.String()]
+					if extraHeader != nil {
+						// 删除原来的数据
+						delete(extraHeaderRequestMap, ev.NetworkID.String())
+					}
+					event = requestFetchHandler.Handle(ev, ctx, executorCtx, func(event *handler.FetchRequestEvent) {
+						event.WithRequestExtraHeaders(extraHeader)
+					})
 				}
 				var err error
 
 				if ev.ResponseStatusCode > 0 {
 					if event.IsHandle() {
-						err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(ev.ResponseHeaders).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(executorCtx)
+						err = fetch.FulfillRequest(ev.RequestID, ev.ResponseStatusCode).WithResponseHeaders(event.BuildResponseHeaderEntry()).WithBody(base64.StdEncoding.EncodeToString(event.GetBody())).Do(executorCtx)
 					} else {
 						err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
 					}
 				} else {
 					if event.IsHandle() {
-						var headers []*fetch.HeaderEntry
-						for k, v := range ev.Request.Headers {
-							headers = append(headers, &fetch.HeaderEntry{Name: k, Value: v.(string)})
-						}
-						err = fetch.ContinueRequest(ev.RequestID).WithHeaders(headers).Do(executorCtx)
+						err = fetch.ContinueRequest(ev.RequestID).WithURL(event.Event.Request.URL).WithMethod(event.Event.Request.Method).WithPostData(event.Event.Request.PostData).WithHeaders(event.BuildRequestHeaderEntry()).Do(executorCtx)
 					} else {
 						err = fetch.ContinueRequest(ev.RequestID).Do(executorCtx)
 					}
@@ -238,11 +215,13 @@ func listenTarget(ctx context.Context, option *ChromiumOptions) {
 				// 创建了新的iframe
 				if ev.FrameID.String() != chromeCtx.Target.TargetID.String() {
 					// 获取iframe的上下文
-					ictx := GetIframeContext(ctx, ev.FrameID.String())
-					addInjectScript(ictx, option)
+					ictx := utils.GetFrameContext(ctx, ev.FrameID.String())
+					chromedp.Run(ictx, addInjectScript(option))
 				}
-			case *network.EventResponseReceivedExtraInfo:
+			case *network.EventRequestWillBeSentExtraInfo:
 				extraHeaderRequestMap[ev.RequestID.String()] = ev.Headers
+			case *network.EventResponseReceivedExtraInfo:
+				extraHeaderResponseMap[ev.RequestID.String()] = ev.Headers
 			}
 		}()
 	})

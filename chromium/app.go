@@ -6,8 +6,6 @@ import (
 )
 
 type App struct {
-	OnReady func(ctx context.Context)
-
 	OnPageLifecycleEvent func(ctx context.Context, ev *page.EventLifecycleEvent)
 
 	OnFrameLifecycleEvent func(ctx context.Context, ev *page.EventLifecycleEvent)

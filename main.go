@@ -4,16 +4,13 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
-	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/imblowsnow/cgui/chromium/handler"
 	"github.com/tawesoft/golib/v2/dialog"
 	"strings"
-	"time"
 )
 
 //go:embed all:frontend
@@ -46,74 +43,22 @@ func main() {
 			// 隐身模式
 			// chromedp.Flag("incognito", true),
 		},
-		RequestHandlers: []func(event *handler.FetchRequestEvent){
-			func(event *handler.FetchRequestEvent) {
-				if strings.HasPrefix(event.Event.Request.URL, "https://www.xiaohongshu.com/") {
+		RequestHandlers: []func(e *handler.FetchRequestEvent){
+			func(e *handler.FetchRequestEvent) {
+				if strings.HasPrefix(e.Event.Request.URL, "xxxx") {
 					// 替换 referer
-					event.AddRequestHeader("Referer", "https://www.xiaohongshu.com/")
+					e.AddRequestHeader("Referer", "xxxx")
+					e.AddRequestHeader("Sec-Fetch-Dest", "empty")
+					e.AddRequestHeader("Sec-Fetch-Mode", "cors")
+					e.AddRequestHeader("Sec-Fetch-Site", "same-site")
 				}
-				fmt.Println("on request", event.Event.NetworkID, event.Event.RequestID, event.Event.Request.URL)
-				event.Next()
+				fmt.Println("on request", e.Event.NetworkID, e.Event.RequestID, e.Event.Request.URL)
+				e.Next()
 			},
 		},
-		ResponseHandlers: []func(event *handler.FetchRequestEvent){
-			func(event *handler.FetchRequestEvent) {
-				if strings.HasPrefix(event.Event.Request.URL, "https://www.xiaohongshu.com/") {
-					cookies := event.GetSetCookies()
-					event.AddResponseHeader("Set-Cookie", cookies+"; sameSite=None")
-
-					go func() {
-						ctx := event.Ctx
-						if !event.IsPageFrame() {
-							ctx = chromium.GetIframeExecutorContext(event.Ctx, event.Event.FrameID.String())
-						}
-						// Split the cookie string into individual properties
-						properties := strings.Split(cookies, ";")
-
-						cookieParam := &network.CookieParam{}
-
-						// event.Event.Request.URL 使用 / 结尾
-						domainUrl := strings.TrimRight(event.Event.Request.URL, "/")
-						cookieParam.URL = domainUrl
-						cookieParam.SameSite = network.CookieSameSiteNone
-						// Iterate over the properties and set the corresponding fields in the CookieParam
-						for i, property := range properties {
-							parts := strings.SplitN(property, "=", 2)
-							key, value := parts[0], parts[1]
-							key = strings.TrimSpace(key)
-							if i == 0 {
-								cookieParam.Name = key
-								cookieParam.Value = value
-								continue
-							}
-
-							switch key {
-							case "path":
-								cookieParam.Path = value
-							case "expires":
-								// 解析 Fri, 28 Feb 2025 06:01:26 GMT 为 time.Time
-								expires, err := time.Parse(time.RFC1123, value)
-								if err == nil {
-									tempExpires := cdp.TimeSinceEpoch(expires)
-									cookieParam.Expires = &tempExpires
-								}
-							case "domain":
-								cookieParam.Domain = value
-							}
-						}
-
-						fmt.Println("on response", event.Event.NetworkID, event.Event.RequestID, event.Event.Request.URL, cookies)
-
-						// 设置cookie到网站里面
-						err := network.SetCookies([]*network.CookieParam{
-							cookieParam,
-						}).Do(ctx)
-						if err != nil {
-							fmt.Println("SetCookies error", err.Error())
-						}
-					}()
-				}
-				event.Next()
+		ResponseHandlers: []func(e *handler.FetchRequestEvent){
+			func(e *handler.FetchRequestEvent) {
+				e.Next()
 			},
 		},
 
