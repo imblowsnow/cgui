@@ -31,11 +31,14 @@ func Bind(ctx context.Context, binds []interface{}) error {
 func bindStruct(ctx context.Context, bind interface{}) error {
 	t := reflect.TypeOf(bind)
 	jspath := strings.ReplaceAll(t.PkgPath()+"/"+t.Name(), "/", ".")
+	if strings.Contains(jspath, "github.com.imblowsnow.cgui.chromium.") {
+		jspath = strings.ReplaceAll(jspath, "github.com.imblowsnow.cgui.chromium.", "")
+	}
 	// 反射获取方法名
 	for i := 0; i < t.NumMethod(); i++ {
 		method := t.Method(i)
 
-		err := Expose(ctx, jspath, func(args string) (string, error) {
+		err := Expose(ctx, jspath+"."+method.Name, func(args string) (string, error) {
 			values := method.Func.Call([]reflect.Value{reflect.ValueOf(bind), reflect.ValueOf(args)})
 			if len(values) == 0 {
 				return "nil", nil

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	"github.com/chromedp/cdproto/fetch"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/imblowsnow/cgui/chromium"
 	"github.com/imblowsnow/cgui/chromium/handler"
@@ -66,15 +64,7 @@ func main() {
 			return true
 		},
 
-		App: &chromium.App{
-			OnReady: func(ctx context.Context) {
-				fmt.Println("on ready")
-				_, _, err := runtime.Evaluate("console.log(2333)").Do(ctx)
-				if err != nil {
-					fmt.Println("Evaluate error", err.Error())
-				}
-			},
-		},
+		App: &chromium.App{},
 
 		Binds: []interface{}{
 			TestBindJs{},
